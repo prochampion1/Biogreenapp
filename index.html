@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E6B45">
+<title>Biogreen Kho</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Đăng nhập -->
+<section class="screen" id="s-login" hidden>
+  <div class="login">
+    <div class="login-brand">
+      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4v10l-8 4-8-4z"/><path d="M4 7l8 4 8-4M12 11v10"/></svg></span>
+      <h1>Biogreen Kho</h1>
+      <p class="muted">Đăng nhập để nhập, xuất và kiểm kê hàng</p>
+    </div>
+    <form id="f-login" class="stack" novalidate>
+      <div class="field">
+        <label for="l-user">Tên đăng nhập</label>
+        <input id="l-user" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      </div>
+      <div class="field">
+        <label for="l-pass">Mật khẩu</label>
+        <div class="pw">
+          <input id="l-pass" type="password" autocomplete="current-password" required>
+          <button type="button" class="icon-btn" data-eye="l-pass" aria-label="Hiện mật khẩu"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+      </div>
+      <p class="alert" id="l-err" role="alert" hidden></p>
+      <label class="check"><input type="checkbox" id="l-remember" checked> Giữ đăng nhập trên máy này 30 ngày</label>
+      <button class="btn btn-primary btn-lg" type="submit">Đăng nhập</button>
+    </form>
+    <p class="muted center small">Quên mật khẩu? Liên hệ quản lý kho để đặt lại.</p>
+  </div>
+</section>
+
+<!-- Đổi mật khẩu -->
+<section class="screen" id="s-password" hidden>
+  <header class="bar">
+    <button class="icon-btn" data-back aria-label="Quay lại" id="pw-back"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1>Đổi mật khẩu</h1>
+  </header>
+  <main class="content">
+    <p class="note" id="pw-first" hidden>Đây là lần đăng nhập đầu. Hãy đặt mật khẩu riêng của bạn.</p>
+    <form id="f-password" class="stack" novalidate>
+      <div class="field"><label for="pw-old">Mật khẩu hiện tại</label><input id="pw-old" type="password" autocomplete="current-password"></div>
+      <div class="field"><label for="pw-new">Mật khẩu mới (ít nhất 6 ký tự)</label><input id="pw-new" type="password" autocomplete="new-password"></div>
+      <div class="field"><label for="pw-new2">Nhập lại mật khẩu mới</label><input id="pw-new2" type="password" autocomplete="new-password"></div>
+      <p class="alert" id="pw-err" role="alert" hidden></p>
+      <button class="btn btn-primary btn-lg" type="submit">Lưu mật khẩu</button>
+    </form>
+  </main>
+</section>
+
+<!-- Trang chủ -->
+<section class="screen" id="s-home" hidden>
+  <header class="home-head">
+    <div>
+      <span class="muted small" id="h-date"></span>
+      <h1 id="h-hello">Chào bạn</h1>
+    </div>
+    <button class="avatar" data-go="account" aria-label="Tài khoản" id="h-avatar">B</button>
+  </header>
+  <main class="content stack-lg">
+    <button class="scan-cta" data-scan="">
+      <span class="scan-cta-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8v8M10 8v8M13 8v8M16.5 8v8"/></svg></span>
+      <span class="grow"><strong>Quét mã sản phẩm</strong><span>Quét rồi chọn Nhập, Xuất hoặc Xem tồn</span></span>
+      <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+    <div class="tiles">
+      <button class="tile" data-scan="nhap"><span class="tile-ic t-nhap" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4v12M6 10l6 6 6-6M4 20h16"/></svg></span><strong>Nhập kho</strong><span>Hàng về, kiểm dư</span></button>
+      <button class="tile" data-scan="xuat"><span class="tile-ic t-xuat" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg></span><strong>Xuất kho</strong><span>Giao khách, hỏng</span></button>
+      <button class="tile" data-scan="chuyen"><span class="tile-ic t-chuyen" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/></svg></span><strong>Chuyển kho</strong><span>Giữa các kho</span></button>
+      <button class="tile" data-go="kiemke"><span class="tile-ic t-kk" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 4h6v3H9zM7 5.5H5v15h14v-15h-2"/><path d="M8.5 13l2.5 2.5 4.5-5"/></svg></span><strong>Kiểm kê</strong><span>Đếm cuối tuần</span></button>
+    </div>
+    <section class="stack-sm">
+      <div class="row-between"><h2>Cần chú ý</h2><button class="link" data-go="stock">Xem tồn kho</button></div>
+      <div class="card list" id="h-low"></div>
+    </section>
+    <section class="stack-sm">
+      <h2>Vừa ghi</h2>
+      <div class="card list" id="h-recent"></div>
+    </section>
+  </main>
+  <nav class="tabbar" aria-label="Điều hướng chính">
+    <button data-go="home" aria-current="page"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg>Trang chủ</button>
+    <button data-scan=""><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></svg>Quét</button>
+    <button data-go="stock"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4v10l-8 4-8-4z"/><path d="M4 7l8 4 8-4M12 11v10"/></svg>Tồn kho</button>
+    <button data-go="account"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Tài khoản</button>
+  </nav>
+</section>
+
+<!-- Quét mã -->
+<section class="screen dark" id="s-scan" hidden>
+  <header class="bar">
+    <button class="icon-btn on-dark" data-back aria-label="Quay lại"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1 id="sc-title">Quét mã vạch</h1>
+    <button class="icon-btn on-dark" id="sc-torch" aria-label="Bật đèn flash" aria-pressed="false" hidden><svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></button>
+  </header>
+  <div class="viewfinder">
+    <video id="sc-video" playsinline muted></video>
+    <div class="frame" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
+  </div>
+  <p class="sc-hint" id="sc-hint">Đưa mã vạch vào khung</p>
+  <div class="sc-manual">
+    <label for="sc-search" class="sr-only">Gõ mã hoặc tìm theo tên</label>
+    <input id="sc-search" placeholder="Gõ mã hoặc tên sản phẩm" autocomplete="off" spellcheck="false">
+    <div class="sc-results" id="sc-results"></div>
+  </div>
+</section>
+
+<!-- Phiếu nhập / xuất / chuyển -->
+<section class="screen" id="s-form" hidden>
+  <header class="bar">
+    <button class="icon-btn" data-back aria-label="Quay lại"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1 id="fm-title">Nhập kho</h1>
+    <span class="muted small" id="fm-date"></span>
+  </header>
+  <form class="content stack-lg form" id="f-form" novalidate>
+    <div class="card product" id="fm-product"></div>
+
+    <section class="stack-sm" id="fm-from-wrap">
+      <span class="label" id="fm-from-label">Xuất từ kho</span>
+      <div class="chips" role="radiogroup" aria-labelledby="fm-from-label" id="fm-from"></div>
+    </section>
+    <section class="stack-sm" id="fm-to-wrap">
+      <span class="label" id="fm-to-label">Kho nhận</span>
+      <div class="chips" role="radiogroup" aria-labelledby="fm-to-label" id="fm-to"></div>
+    </section>
+
+    <section class="stack-sm">
+      <label class="label" for="fm-qty">Số lượng <span id="fm-unit" class="muted"></span></label>
+      <div class="qty">
+        <button type="button" class="qty-btn" data-step="-1" aria-label="Giảm"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+        <input id="fm-qty" inputmode="decimal" autocomplete="off">
+        <button type="button" class="qty-btn solid" data-step="1" aria-label="Tăng"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg></button>
+      </div>
+      <div class="quick" id="fm-quick"></div>
+      <p class="alert" id="fm-over" role="alert" hidden></p>
+    </section>
+
+    <section class="grid2" id="fm-extra"></section>
+    <p class="alert" id="fm-err" role="alert" hidden></p>
+  </form>
+  <footer class="foot">
+    <span class="muted small center" id="fm-after"></span>
+    <button class="btn btn-primary btn-lg" id="fm-save" form="f-form" type="submit">Lưu</button>
+  </footer>
+</section>
+
+<!-- Tồn kho -->
+<section class="screen" id="s-stock" hidden>
+  <header class="bar">
+    <button class="icon-btn" data-back aria-label="Quay lại"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1>Tồn kho</h1>
+    <button class="icon-btn" id="st-refresh" aria-label="Tải lại"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg></button>
+  </header>
+  <div class="pad stack-sm">
+    <div class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <label for="st-q" class="sr-only">Tìm sản phẩm</label>
+      <input id="st-q" placeholder="Tên hoặc mã, vd: 197 bọc màng" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="pills" id="st-tabs"></div>
+  </div>
+  <main class="content stack-sm" id="st-list"></main>
+</section>
+
+<!-- Kiểm kê -->
+<section class="screen" id="s-kiemke" hidden>
+  <header class="bar">
+    <button class="icon-btn" data-back aria-label="Quay lại"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1>Kiểm kê</h1>
+    <span class="muted small" id="kk-date"></span>
+  </header>
+  <div class="pad stack-sm">
+    <div class="seg" role="tablist" aria-label="Chọn kho" id="kk-khos"></div>
+    <div class="card kk-sum" id="kk-sum"></div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <label for="kk-q" class="sr-only">Tìm sản phẩm</label>
+      <input id="kk-q" placeholder="Tìm để đếm không cần quét" autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+  <main class="content stack-sm" id="kk-list"></main>
+  <footer class="foot two">
+    <button class="btn btn-kk btn-lg" data-scan="kiemke">Quét để đếm</button>
+    <button class="btn btn-ghost btn-lg" id="kk-new" hidden>Bắt đầu kỳ mới</button>
+  </footer>
+</section>
+
+<!-- Tài khoản -->
+<section class="screen" id="s-account" hidden>
+  <header class="bar">
+    <button class="icon-btn" data-back aria-label="Quay lại"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1>Tài khoản</h1>
+    <button class="btn btn-primary btn-sm" id="ac-add" hidden>+ Thêm</button>
+  </header>
+  <main class="content stack-sm">
+    <div class="card me" id="ac-me"></div>
+    <div class="grid2">
+      <button class="btn btn-ghost" data-go="password">Đổi mật khẩu</button>
+      <button class="btn btn-ghost danger" id="ac-logout">Đăng xuất</button>
+    </div>
+    <div id="ac-admin" class="stack-sm" hidden>
+      <span class="overline" id="ac-count">NHÂN VIÊN</span>
+      <div class="stack-sm" id="ac-users"></div>
+    </div>
+  </main>
+</section>
+
+<!-- Bảng trượt dùng chung -->
+<div class="sheet-backdrop" id="sheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <span class="grabber" aria-hidden="true"></span>
+    <div id="sheet-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="busy" id="busy" hidden><span class="spinner" aria-label="Đang xử lý"></span></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
