@@ -1,6 +1,6 @@
 // Lưu sẵn khung app để mở nhanh; luôn ưu tiên bản mới trên mạng.
 // Dữ liệu kho không lưu ở đây (gọi thẳng Apps Script).
-const CACHE = 'kho-v1';
+const CACHE = 'kho-v2';
 const SHELL = [
   './', './index.html', './styles.css', './app.js', './config.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png',
