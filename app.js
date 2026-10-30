@@ -1347,7 +1347,7 @@ function chartSvg(keys, vals) {
     return `<g data-k="${esc(k)}" role="button" aria-label="${esc(bucketFull(BC.gran, k) + ': ' + vnd(vals[i]))}">
       <rect x="${i * slot}" y="0" width="${slot}" height="${H - bot}" fill="transparent"/>
       <rect class="bar${k === BC.sel ? ' on' : ''}" x="${x.toFixed(1)}" y="${(H - bot - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3"/>
-      ${showLab ? `<text class="ax${k === BC.sel ? ' on' : ''}" x="${(x + bw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(bucketShort(BC.gran, k))}</text>` : ''}
+      ${showLab ? `<text class="ax${k === BC.sel ? ' on' : ''}" x="${(i === n - 1 && n > 12 ? W : x + bw / 2).toFixed(1)}" y="${H - 6}" text-anchor="${i === n - 1 && n > 12 ? 'end' : 'middle'}">${esc(bucketShort(BC.gran, k))}</text>` : ''}
     </g>`;
   }).join('');
   return `<svg viewBox="0 0 ${W} ${H}" class="bc-chart" role="group" aria-label="Biểu đồ doanh thu theo ${GRAN[BC.gran].name.toLowerCase()}">
@@ -1379,14 +1379,21 @@ function drawBaocao() {
   }
   const g = BC.gran;
   const keys = bucketsEnding(g, GRAN[g].n, BC.shift);
-  if (!keys.includes(BC.sel)) BC.sel = keys[keys.length - 1];
-  const prevKey = bucketKey(g, ymd(shiftBucket(g, bucketStart(g, BC.sel), 1)));
   const tot = new Map(keys.map((k) => [k, 0]));
+  rows.forEach((r) => {
+    const k = bucketKey(g, r[0]);
+    if (tot.has(k)) tot.set(k, tot.get(k) + r[7]);
+  });
+  if (!keys.includes(BC.sel)) {
+    // Kỳ hiện tại chưa có số (vd hôm nay chưa xuất đơn): chọn kỳ gần nhất có doanh thu.
+    const withData = keys.filter((k) => tot.get(k) !== 0);
+    BC.sel = tot.get(keys[keys.length - 1]) === 0 && withData.length ? withData[withData.length - 1] : keys[keys.length - 1];
+  }
+  const prevKey = bucketKey(g, ymd(shiftBucket(g, bucketStart(g, BC.sel), 1)));
   const cur = [];
   let prevRev = 0;
   rows.forEach((r) => {
     const k = bucketKey(g, r[0]);
-    if (tot.has(k)) tot.set(k, tot.get(k) + r[7]);
     if (k === BC.sel) cur.push(r);
     else if (k === prevKey) prevRev += r[7];
   });
