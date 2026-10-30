@@ -81,6 +81,8 @@
       <button class="tile" data-scan="xuat"><span class="tile-ic t-xuat" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg></span><strong>Xuất kho</strong><span>Giao khách, hỏng</span></button>
       <button class="tile" data-scan="chuyen"><span class="tile-ic t-chuyen" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/></svg></span><strong>Chuyển kho</strong><span>Giữa các kho</span></button>
       <button class="tile" data-go="kiemke"><span class="tile-ic t-kk" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 4h6v3H9zM7 5.5H5v15h14v-15h-2"/><path d="M8.5 13l2.5 2.5 4.5-5"/></svg></span><strong>Kiểm kê</strong><span>Đếm cuối tuần</span></button>
+      <button class="tile" data-go="sanxuat"><span class="tile-ic t-sx" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 21V11l6 4v-4l6 4V6h4v15z"/></svg></span><strong>Sản xuất</strong><span>Định mức, làm thành phẩm</span></button>
+      <button class="tile" id="tile-bc" data-go="baocao" hidden><span class="tile-ic t-bc" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><strong>Báo cáo</strong><span>Doanh thu, bán chạy</span></button>
     </div>
     <section class="stack-sm">
       <div class="row-between"><h2>Cần chú ý</h2><button class="link" data-go="stock">Xem tồn kho</button></div>
@@ -196,6 +198,35 @@
     <button class="btn btn-kk btn-lg" data-scan="kiemke">Quét để đếm</button>
     <button class="btn btn-ghost btn-lg" id="kk-new" hidden>Bắt đầu kỳ mới</button>
   </footer>
+</section>
+
+<!-- Sản xuất -->
+<section class="screen" id="s-sanxuat" hidden>
+  <header class="bar">
+    <button class="icon-btn" data-back aria-label="Quay lại"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1>Sản xuất</h1>
+    <button class="btn btn-primary btn-sm" id="sx-add" hidden>+ Định mức</button>
+  </header>
+  <div class="pad stack-sm">
+    <p class="muted small" style="margin:0">Chuyển nguyên liệu vào Khu sản xuất bằng "Chuyển kho", rồi chọn thành phẩm bên dưới để báo số lượng làm ra.</p>
+    <div class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <label for="sx-q" class="sr-only">Tìm thành phẩm</label>
+      <input id="sx-q" placeholder="Tìm thành phẩm có định mức" autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+  <main class="content stack-sm" id="sx-list"></main>
+</section>
+
+<!-- Báo cáo doanh thu (chỉ quản lý) -->
+<section class="screen" id="s-baocao" hidden>
+  <header class="bar">
+    <button class="icon-btn" data-back aria-label="Quay lại"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1>Báo cáo</h1>
+    <button class="btn btn-primary btn-sm" id="bc-import">Nhập Ecount</button>
+  </header>
+  <div class="pad"><div class="seg" id="bc-gran" role="radiogroup" aria-label="Xem theo"></div></div>
+  <main class="content stack-lg" id="bc-body"></main>
 </section>
 
 <!-- Tài khoản -->

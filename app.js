@@ -4,9 +4,10 @@
 // đọc/ghi qua Apps Script (link trong config.js).
 
 const CFG = window.KHO_CONFIG || {};
-const KHO = ['Kho trên', 'Kho dưới', 'Kho trung tâm', 'Kho mẫu'];
-const KHO_SHORT = { 'Kho trên': 'Trên', 'Kho dưới': 'Dưới', 'Kho trung tâm': 'Trung tâm', 'Kho mẫu': 'Mẫu' };
+const KHO = ['Kho trên', 'Kho dưới', 'Kho trung tâm', 'Kho mẫu', 'Khu sản xuất'];
+const KHO_SHORT = { 'Kho trên': 'Trên', 'Kho dưới': 'Dưới', 'Kho trung tâm': 'Trung tâm', 'Kho mẫu': 'Mẫu', 'Khu sản xuất': 'SX' };
 const KHO_MAU = 'Kho mẫu';
+const KHO_SX = 'Khu sản xuất';
 const ADMIN = 'Quản lý';
 const STAFF = 'Nhân viên kho';
 const MODE = {
@@ -15,7 +16,7 @@ const MODE = {
   chuyen: { title: 'Chuyển kho', verb: 'Đã chuyển', save: 'Lưu phiếu chuyển' },
 };
 const SCAN_TITLE = { '': 'Quét mã vạch', nhap: 'Quét để nhập kho', xuat: 'Quét để xuất kho', chuyen: 'Quét để chuyển kho', kiemke: 'Quét để kiểm đếm' };
-const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'account'];
+const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'baocao', 'account'];
 const LIST_LIMIT = 60;
 
 const $ = (id) => document.getElementById(id);
@@ -33,6 +34,7 @@ const state = {
   products: [],
   byCode: new Map(),
   history: [],
+  boms: [],
   current: null,
   stack: [],
   scanMode: '',
@@ -174,6 +176,8 @@ const RENDER = {
   form: renderForm,
   stock: renderStock,
   kiemke: () => loadKiemke(),
+  sanxuat: () => renderSanxuat(),
+  baocao: () => renderBaocao(),
   account: renderAccount,
 };
 
@@ -301,6 +305,7 @@ async function loadAll({ quiet = false } = {}) {
   store.save({ token: state.token, user: d.user }, store.remembered());
   setProducts(d.products);
   state.history = d.history;
+  state.boms = d.boms || [];
 }
 
 function logout(expired = false) {
@@ -364,6 +369,7 @@ function renderHome() {
   const u = state.user;
   const name = u.name || u.username;
   $('h-hello').textContent = 'Chào ' + name;
+  $('tile-bc').hidden = !isAdmin();
   $('h-avatar').textContent = name.slice(0, 1).toUpperCase();
   const d = new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' });
   $('h-date').textContent = d.charAt(0).toUpperCase() + d.slice(1) + ' · Kho Biogreen';
@@ -746,7 +752,7 @@ function renderStockList() {
     ? `<span class="small muted">${list.length} sản phẩm · có thể bán = Trên + Dưới + Trung tâm</span>`
       + shown.map((p) => `<button class="card stock-item" data-code="${esc(p.code)}">
           <span class="stock-top"><span><strong>${esc(nice(p.name))}</strong><span class="mono">${esc(p.code)}</span></span><span class="badge ${statusClass(p.status)}">${esc(p.status || '—')}</span></span>
-          <span class="stock-bottom"><span>Trên ${fmt(p.stock['Kho trên'])} · Dưới ${fmt(p.stock['Kho dưới'])} · TT ${fmt(p.stock['Kho trung tâm'])} · Mẫu ${fmt(p.stock['Kho mẫu'])}</span><span><b>${fmt(p.sellable)}</b> ${esc(p.unit)}</span></span>
+          <span class="stock-bottom"><span>Trên ${fmt(p.stock['Kho trên'])} · Dưới ${fmt(p.stock['Kho dưới'])} · TT ${fmt(p.stock['Kho trung tâm'])} · Mẫu ${fmt(p.stock['Kho mẫu'])} · SX ${fmt(p.stock[KHO_SX])}</span><span><b>${fmt(p.sellable)}</b> ${esc(p.unit)}</span></span>
         </button>`).join('')
       + (list.length > shown.length ? `<p class="more">Còn ${list.length - shown.length} mã nữa, gõ tên hoặc mã để tìm.</p>` : '')
     : state.stockTab === 'low' && !$('st-q').value
@@ -779,8 +785,11 @@ $('st-refresh').addEventListener('click', async () => {
 
 // ───────────────────────── Kiểm kê ─────────────────────────
 
+// Khu sản xuất không có khối trong tab Kiểm kê.
+const kiemkeKhos = () => allowedKhos().filter((k) => k !== KHO_SX);
+
 async function loadKiemke(kho) {
-  const khos = allowedKhos();
+  const khos = kiemkeKhos();
   state.kk.kho = kho || (khos.includes(state.kk.kho) ? state.kk.kho : khos[0]);
   renderKiemkeTabs();
   $('kk-new').hidden = !isAdmin();
@@ -798,7 +807,7 @@ async function loadKiemke(kho) {
 }
 
 function renderKiemkeTabs() {
-  $('kk-khos').innerHTML = allowedKhos().map((k) => `<button role="tab" aria-selected="${k === state.kk.kho}" data-kk="${esc(k)}">${KHO_SHORT[k]}</button>`).join('');
+  $('kk-khos').innerHTML = kiemkeKhos().map((k) => `<button role="tab" aria-selected="${k === state.kk.kho}" data-kk="${esc(k)}">${KHO_SHORT[k]}</button>`).join('');
 }
 
 function renderKiemke() {
@@ -1052,6 +1061,599 @@ function userSheet(x) {
     },
     onClose: loadUsers,
   });
+}
+
+// ───────────────────────── Sản xuất (định mức BOM) ─────────────────────────
+
+const bomOf = (code) => state.boms.find((b) => b.code.toLowerCase() === String(code).toLowerCase());
+const round6 = (x) => Math.round(x * 1e6) / 1e6;
+
+function renderSanxuat() {
+  $('sx-add').hidden = !isAdmin();
+  renderSanxuatList();
+}
+
+function renderSanxuatList() {
+  const withBom = state.boms.map((b) => state.byCode.get(b.code.toLowerCase())).filter(Boolean);
+  const list = searchProducts($('sx-q').value, withBom);
+  $('sx-list').innerHTML = list.length
+    ? list.map((p) => {
+      const b = bomOf(p.code);
+      return `<button class="card product" data-code="${esc(p.code)}">${productCard(p)}<span class="small muted">${b.lines.length} nguyên liệu</span></button>`;
+    }).join('')
+    : `<p class="more">${state.boms.length ? 'Không có thành phẩm nào khớp.' : 'Chưa có định mức nào.' + (isAdmin() ? ' Bấm "+ Định mức" để tạo.' : ' Nhờ quản lý tạo định mức.')}</p>`;
+}
+
+$('sx-q').addEventListener('input', renderSanxuatList);
+$('sx-list').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-code]');
+  const p = b && state.byCode.get(b.dataset.code.toLowerCase());
+  if (p) produceSheet(p);
+});
+$('sx-add').addEventListener('click', () => {
+  pickSheet('Chọn thành phẩm cần lập định mức', () => true, (p) => {
+    const old = bomOf(p.code);
+    bomEditSheet(p, old ? old.lines : []);
+  });
+});
+
+// Bảng chọn một sản phẩm bằng cách gõ tìm.
+function pickSheet(title, filter, onPick, onBack) {
+  openSheet(`<h2 id="sheet-title">${esc(title)}</h2>
+    <div class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="pk-q" placeholder="Gõ mã hoặc tên" autocomplete="off" spellcheck="false" autofocus></div>
+    <div class="stack-sm" id="pk-list"></div>
+    ${onBack ? '<button class="btn btn-ghost" data-act="back">Quay lại</button>' : ''}`, {
+    actions: {
+      pick: (btn) => { const p = state.byCode.get(btn.dataset.code.toLowerCase()); if (p) onPick(p); },
+      back: () => onBack && onBack(),
+    },
+  });
+  const draw = () => {
+    const q = $('pk-q').value;
+    const res = searchProducts(q, state.products.filter(filter)).slice(0, 30);
+    $('pk-list').innerHTML = !q.trim() ? '<p class="more">Gõ để tìm.</p>'
+      : res.length ? res.map((p) => `<button class="card product" data-act="pick" data-code="${esc(p.code)}">${productCard(p)}</button>`).join('')
+        : '<p class="more">Không thấy mã nào.</p>';
+  };
+  $('pk-q').addEventListener('input', draw);
+  draw();
+}
+
+// Báo đã làm ra N thành phẩm: trừ nguyên liệu theo định mức khỏi Khu sản xuất.
+function produceSheet(p) {
+  const b = bomOf(p.code);
+  const khos = allowedKhos();
+  if (!b) return;
+  if (!khos.includes(KHO_SX)) { toast('Tài khoản của bạn chưa được làm ở Khu sản xuất.', true); return; }
+  const last = store.get('kho.last.sx');
+  const s = { qty: 0, out: khos.includes(last) ? last : khos.includes('Kho trung tâm') ? 'Kho trung tâm' : khos[0], note: '', clientId: uuid() };
+  const need = () => b.lines.map((l) => {
+    const m = state.byCode.get(l.code.toLowerCase());
+    const q = round6(l.qty * (s.qty > 0 ? s.qty : 0));
+    const have = m ? m.stock[KHO_SX] : 0;
+    return { l, m, q, have, short: !m || have < q };
+  });
+  const body = () => {
+    const n = need();
+    const bad = s.qty > 0 && n.some((x) => x.short);
+    $('sx-lines').innerHTML = n.map((x) => `<div class="bom-line${s.qty > 0 && x.short ? ' short' : ''}">
+        <span class="grow">${esc(x.m ? nice(x.m.name) : x.l.code)}<br><span class="mono">${esc(x.l.code)}</span></span>
+        <span class="num"><b>${s.qty > 0 ? fmt(x.q) : fmt(x.l.qty) + ' / cái'}</b> ${esc(x.m ? x.m.unit : '')}<br><small>Khu SX còn ${fmt(x.have)}</small></span>
+      </div>`).join('');
+    showError('sx-over', bad ? 'Khu sản xuất chưa đủ nguyên liệu (dòng đỏ). Chuyển thêm nguyên liệu vào Khu sản xuất trước.' : '');
+    $('sx-go').disabled = !(s.qty > 0) || bad;
+    $('sx-after').innerHTML = s.qty > 0 && !bad ? `${esc(s.out)} sau khi nhập: <b>${fmt((state.byCode.get(p.code.toLowerCase()) || p).stock[s.out] + s.qty)}</b> ${esc(p.unit)}` : '';
+  };
+  const outs = () => khos.map((k) => `<button type="button" class="chip" role="radio" aria-checked="${s.out === k}" data-act="out" data-kho="${esc(k)}">${esc(k)}<small>có ${fmt(p.stock[k])}</small></button>`).join('');
+  openSheet(`<div class="sx">
+    <h2 id="sheet-title">Báo sản xuất</h2>
+    <div class="card product">${productCard(p)}</div>
+    <div class="field"><label for="sx-qty">Số lượng làm ra (${esc(p.unit)})</label><input id="sx-qty" inputmode="decimal" autocomplete="off" autofocus></div>
+    <span class="label">Thành phẩm nhập vào kho</span>
+    <div class="chips" id="sx-out" role="radiogroup">${outs()}</div>
+    <span class="label">Nguyên liệu sẽ trừ khỏi Khu sản xuất</span>
+    <div class="card list" id="sx-lines"></div>
+    <p class="alert" id="sx-over" role="alert" hidden></p>
+    <div class="field"><label for="sx-note">Ghi chú</label><input id="sx-note" placeholder="Không bắt buộc" autocomplete="off"></div>
+    <p class="alert" id="sx-err" role="alert" hidden></p>
+    <span class="muted small center" id="sx-after"></span>
+    <button class="btn btn-primary btn-lg" id="sx-go" data-act="go" disabled>Ghi sản xuất</button>
+    ${isAdmin() ? '<button class="btn btn-ghost" data-act="edit">Sửa định mức</button>' : ''}
+  </div>`, {
+    actions: {
+      out: (btn) => { s.out = btn.dataset.kho; $('sx-out').innerHTML = outs(); body(); },
+      edit: () => bomEditSheet(p, b.lines),
+      go: async () => {
+        showError('sx-err', '');
+        try {
+          const r = await api('sanxuat', { code: p.code, qty: s.qty, out: s.out, note: s.note, clientId: s.clientId });
+          updateProduct(r.product);
+          r.used.forEach((u) => updateProduct(u.product));
+          store.set('kho.last.sx', s.out);
+          refreshHistory();
+          openSheet(`<span class="done-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+            <h2 id="sheet-title" class="center">Đã làm ra ${fmt(r.qty)} ${esc(p.unit)}</h2>
+            <p class="center muted" style="margin:0">${esc(nice(p.name))}<br>Nhập vào ${esc(r.out)} · lệnh ${esc(r.so)}</p>
+            <div class="card list">${r.used.map((u) => `<div class="bom-line"><span class="grow">${esc(nice(u.name))}</span><span class="num">−${fmt(u.qty)} ${esc(u.unit)}</span></div>`).join('')}</div>
+            <button class="btn btn-primary" data-act="close">Xong</button>`, { actions: { close: () => closeSheet() } });
+        } catch (err) {
+          showError('sx-err', err.message);
+        }
+      },
+    },
+  });
+  $('sx-qty').addEventListener('input', () => { s.qty = parseQty($('sx-qty').value); if (Number.isNaN(s.qty)) s.qty = 0; body(); });
+  $('sx-note').addEventListener('input', () => { s.note = $('sx-note').value; });
+  body();
+}
+
+// Quản lý sửa định mức: mỗi dòng = 1 nguyên liệu và số lượng cho 1 thành phẩm.
+function bomEditSheet(p, lines) {
+  const ed = lines.map((l) => ({ code: l.code, qty: l.qty }));
+  const render = () => {
+    openSheet(`<div class="sx">
+      <h2 id="sheet-title">Định mức</h2>
+      <div class="card product">${productCard(p)}</div>
+      <span class="label">Để làm 1 ${esc(p.unit)} cần</span>
+      <div class="stack-sm">${ed.length ? ed.map((l, i) => {
+        const m = state.byCode.get(l.code.toLowerCase());
+        return `<div class="card bom-edit"><span class="grow">${esc(m ? nice(m.name) : l.code)}<br><span class="mono">${esc(l.code)}</span></span>
+          <input data-i="${i}" inputmode="decimal" value="${l.qty ? esc(String(l.qty).replace('.', ',')) : ''}" aria-label="Số lượng ${esc(l.code)}"><span class="small muted">${esc(m ? m.unit : '')}</span>
+          <button class="icon-btn" data-act="del" data-i="${i}" aria-label="Xoá dòng"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;
+      }).join('') : '<p class="more">Chưa có nguyên liệu nào.</p>'}</div>
+      <button class="btn btn-ghost" data-act="add">+ Thêm nguyên liệu</button>
+      <p class="alert" id="be-err" role="alert" hidden></p>
+      <button class="btn btn-primary btn-lg" data-act="save">${ed.length ? 'Lưu định mức' : 'Xoá định mức'}</button>
+    </div>`, {
+      actions: {
+        del: (btn) => { ed.splice(Number(btn.dataset.i), 1); render(); },
+        add: () => pickSheet('Chọn nguyên liệu', (x) => x.code.toLowerCase() !== p.code.toLowerCase() && !ed.some((l) => l.code.toLowerCase() === x.code.toLowerCase()),
+          (x) => { ed.push({ code: x.code, qty: 0 }); render(); }, render),
+        save: async () => {
+          showError('be-err', '');
+          const bad = ed.find((l) => !(l.qty > 0));
+          if (bad) { showError('be-err', `Nhập số lượng cho ${bad.code}.`); return; }
+          try {
+            const r = await api('bomSave', { code: p.code, lines: ed });
+            state.boms = state.boms.filter((b) => b.code.toLowerCase() !== p.code.toLowerCase());
+            if (r.lines.length) state.boms.push({ code: p.code, lines: r.lines });
+            closeSheet();
+            renderSanxuatList();
+            toast(r.lines.length ? 'Đã lưu định mức.' : 'Đã xoá định mức.');
+          } catch (err) {
+            showError('be-err', err.message);
+          }
+        },
+      },
+    });
+    $('sheet-body').querySelectorAll('input[data-i]').forEach((inp) => inp.addEventListener('input', () => {
+      const v = parseQty(inp.value);
+      ed[Number(inp.dataset.i)].qty = Number.isNaN(v) ? 0 : v;
+    }));
+  };
+  render();
+}
+
+// ───────────────────────── Báo cáo doanh thu (chỉ quản lý) ─────────────────────────
+// Dữ liệu: tab "Doanh thu" trong Google Sheet (nhập từ Ecount). Doanh thu tính theo ngày chứng từ.
+// Mỗi dòng: [ngày yyyy-mm-dd, số CT, khách, mã, tên, SL, đơn giá, thành tiền, VAT].
+
+const BC = { rows: null, gran: 'month', sel: null, shift: 0, rank: 'sp', sort: 'rev', all: false };
+const GRAN = {
+  day: { name: 'Ngày', n: 30 },
+  week: { name: 'Tuần', n: 12 },
+  month: { name: 'Tháng', n: 12 },
+  quarter: { name: 'Quý', n: 8 },
+  year: { name: 'Năm', n: 5 },
+};
+const RANK_TOP = 10;
+const pad2 = (n) => ('0' + n).slice(-2);
+const ymd = (d) => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const dm = (d) => pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1);
+
+function mondayOf(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+}
+
+function bucketKey(g, s) {
+  if (g === 'day') return s;
+  if (g === 'week') return ymd(mondayOf(parseYmd(s)));
+  if (g === 'month') return s.slice(0, 7);
+  if (g === 'quarter') return s.slice(0, 4) + '-Q' + (Math.floor((Number(s.slice(5, 7)) - 1) / 3) + 1);
+  return s.slice(0, 4);
+}
+
+function bucketStart(g, k) {
+  if (g === 'day' || g === 'week') return parseYmd(k);
+  if (g === 'month') return parseYmd(k + '-01');
+  if (g === 'quarter') return new Date(Number(k.slice(0, 4)), (Number(k.slice(6)) - 1) * 3, 1);
+  return new Date(Number(k), 0, 1);
+}
+
+// Dịch mốc d lùi k kỳ (k âm là tiến).
+function shiftBucket(g, d, k) {
+  if (g === 'day') return new Date(d.getFullYear(), d.getMonth(), d.getDate() - k);
+  if (g === 'week') return new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7 * k);
+  if (g === 'month') return new Date(d.getFullYear(), d.getMonth() - k, 1);
+  if (g === 'quarter') return new Date(d.getFullYear(), d.getMonth() - 3 * k, 1);
+  return new Date(d.getFullYear() - k, 0, 1);
+}
+
+function bucketsEnding(g, n, shift) {
+  const now = new Date();
+  const anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const keys = [];
+  for (let i = n - 1; i >= 0; i--) keys.push(bucketKey(g, ymd(shiftBucket(g, anchor, i + shift * n))));
+  return keys;
+}
+
+function bucketShort(g, k) {
+  if (g === 'day' || g === 'week') return dm(parseYmd(k));
+  if (g === 'month') return 'T' + Number(k.slice(5));
+  if (g === 'quarter') return 'Q' + k.slice(6);
+  return k;
+}
+
+function bucketFull(g, k) {
+  if (g === 'day') return dm(parseYmd(k)) + '/' + k.slice(0, 4);
+  if (g === 'week') { const s = parseYmd(k); return 'Tuần ' + dm(s) + ' – ' + dm(shiftBucket('day', s, -6)) + '/' + shiftBucket('day', s, -6).getFullYear(); }
+  if (g === 'month') return 'Tháng ' + Number(k.slice(5)) + '/' + k.slice(0, 4);
+  if (g === 'quarter') return 'Quý ' + k.slice(6) + '/' + k.slice(0, 4);
+  return 'Năm ' + k;
+}
+
+const money = (n) => {
+  const a = Math.abs(n);
+  const f = (x, u) => x.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + ' ' + u;
+  if (a >= 1e9) return f(n / 1e9, 'tỷ');
+  if (a >= 1e6) return f(n / 1e6, 'tr');
+  if (a >= 1e3) return Math.round(n / 1e3).toLocaleString('vi-VN') + ' k';
+  return fmt(n);
+};
+const vnd = (n) => fmt(Math.round(n)) + ' đ';
+
+async function renderBaocao() {
+  if (!isAdmin()) { show('home', { push: false }); return; }
+  drawGran();
+  const had = !!BC.rows;
+  if (!had) $('bc-body').innerHTML = '<p class="more">Đang tải…</p>';
+  try {
+    BC.rows = (await api('dtList', {}, { quiet: had })).rows;
+  } catch (err) {
+    toast(err.message, true);
+    if (!had) { $('bc-body').innerHTML = `<p class="more">${esc(err.message)}</p>`; return; }
+  }
+  if (state.current === 'baocao') drawBaocao();
+}
+
+function drawGran() {
+  $('bc-gran').innerHTML = Object.keys(GRAN).map((g) =>
+    `<button type="button" role="radio" aria-checked="${BC.gran === g}" data-g="${g}">${GRAN[g].name}</button>`).join('');
+}
+
+function chartSvg(keys, vals) {
+  const W = 360, H = 176, top = 16, bot = 22, n = keys.length;
+  const max = Math.max(...vals, 1);
+  const slot = W / n;
+  const bw = Math.max(4, slot * 0.62);
+  const bars = keys.map((k, i) => {
+    const h = vals[i] > 0 ? Math.max(2, (vals[i] / max) * (H - top - bot)) : 0;
+    const x = i * slot + (slot - bw) / 2;
+    const showLab = n <= 12 || (n - 1 - i) % 5 === 0;
+    return `<g data-k="${esc(k)}" role="button" aria-label="${esc(bucketFull(BC.gran, k) + ': ' + vnd(vals[i]))}">
+      <rect x="${i * slot}" y="0" width="${slot}" height="${H - bot}" fill="transparent"/>
+      <rect class="bar${k === BC.sel ? ' on' : ''}" x="${x.toFixed(1)}" y="${(H - bot - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3"/>
+      ${showLab ? `<text class="ax${k === BC.sel ? ' on' : ''}" x="${(x + bw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(bucketShort(BC.gran, k))}</text>` : ''}
+    </g>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="bc-chart" role="group" aria-label="Biểu đồ doanh thu theo ${GRAN[BC.gran].name.toLowerCase()}">
+    <line class="grid" x1="0" y1="${H - bot}" x2="${W}" y2="${H - bot}"/>
+    <text class="ax" x="0" y="10">${esc(money(max))}</text>${bars}</svg>`;
+}
+
+function rankRows(rows) {
+  const sp = BC.rank === 'sp';
+  const m = new Map();
+  rows.forEach((r) => {
+    const id = sp ? (r[3] || r[4] || '(không mã)') : (r[2] || '(không tên)');
+    let o = m.get(id);
+    if (!o) m.set(id, o = { id, name: sp ? r[4] : r[2], rev: 0, qty: 0, docs: new Set() });
+    o.rev += r[7];
+    o.qty += r[5];
+    o.docs.add(r[1]);
+  });
+  const val = (o) => (BC.sort === 'rev' ? o.rev : sp ? o.qty : o.docs.size);
+  return [...m.values()].sort((a, b) => val(b) - val(a)).map((o) => Object.assign(o, { v: val(o) }));
+}
+
+function drawBaocao() {
+  const rows = BC.rows || [];
+  if (!rows.length) {
+    $('bc-body').innerHTML = `<div class="card bc-empty"><strong>Chưa có dữ liệu doanh thu</strong>
+      <span class="muted small">Bấm "Nhập Ecount" ở góc trên để đưa chứng từ bán hàng vào. Doanh thu tính theo ngày chứng từ.</span></div>`;
+    return;
+  }
+  const g = BC.gran;
+  const keys = bucketsEnding(g, GRAN[g].n, BC.shift);
+  if (!keys.includes(BC.sel)) BC.sel = keys[keys.length - 1];
+  const prevKey = bucketKey(g, ymd(shiftBucket(g, bucketStart(g, BC.sel), 1)));
+  const tot = new Map(keys.map((k) => [k, 0]));
+  const cur = [];
+  let prevRev = 0;
+  rows.forEach((r) => {
+    const k = bucketKey(g, r[0]);
+    if (tot.has(k)) tot.set(k, tot.get(k) + r[7]);
+    if (k === BC.sel) cur.push(r);
+    else if (k === prevKey) prevRev += r[7];
+  });
+  const rev = cur.reduce((s, r) => s + r[7], 0);
+  const docs = new Set(cur.map((r) => r[1])).size;
+  const custs = new Set(cur.map((r) => r[2]).filter(Boolean)).size;
+  let delta = '<span class="muted">Kỳ trước chưa có số liệu</span>';
+  if (prevRev > 0) {
+    const p = ((rev - prevRev) / prevRev) * 100;
+    delta = `<span class="${p >= 0 ? 'up' : 'down'}">${p >= 0 ? '▲' : '▼'} ${Math.abs(p).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%</span> <span class="muted">so với ${esc(bucketFull(g, prevKey))} (${esc(money(prevRev))})</span>`;
+  }
+  const range = bucketFull(g, keys[0]) + ' → ' + bucketFull(g, keys[keys.length - 1]);
+
+  const sp = BC.rank === 'sp';
+  const ranked = rankRows(cur);
+  const shown = BC.all ? ranked : ranked.slice(0, RANK_TOP);
+  const top = ranked.length ? ranked[0].v : 1;
+  const sub = (o) => (sp ? `${esc(o.id)} · SL ${fmt(o.qty)}` : `${o.docs.size} chứng từ · SL ${fmt(o.qty)}`);
+  const list = shown.length ? shown.map((o, i) => `<div class="rk">
+      <span class="rk-n">${i + 1}</span>
+      <span class="grow"><strong>${esc(nice(o.name) || o.id)}</strong><span class="small muted">${sub(o)}</span>
+        <span class="rk-bar"><i style="width:${Math.max(2, (o.v / top) * 100).toFixed(1)}%"></i></span></span>
+      <span class="num"><b>${esc(money(o.rev))}</b></span></div>`).join('')
+    : '<p class="more">Kỳ này chưa có chứng từ nào.</p>';
+
+  $('bc-body').innerHTML = `
+    <div class="row-between bc-nav">
+      <button class="icon-btn" data-nav="1" aria-label="Lùi về trước"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="small muted center grow">${esc(range)}</span>
+      <button class="icon-btn" data-nav="-1" aria-label="Tiến lên" ${BC.shift === 0 ? 'disabled' : ''}><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+    <div class="card bc-card">${chartSvg(keys, keys.map((k) => Math.max(0, tot.get(k))))}
+      <p class="small muted center" style="margin:6px 0 0">Bấm vào cột để xem chi tiết kỳ đó</p></div>
+    <div class="card bc-kpi">
+      <span class="small muted">${esc(bucketFull(g, BC.sel))}</span>
+      <strong class="bc-big">${esc(vnd(rev))}</strong>
+      <span class="small">${delta}</span>
+      <span class="small muted">${docs} chứng từ · ${custs} khách · ${cur.length} dòng hàng</span>
+    </div>
+    <section class="stack-sm">
+      <div class="seg" role="radiogroup" aria-label="Xếp hạng theo">
+        <button type="button" role="radio" aria-checked="${sp}" data-rank="sp">Mặt hàng bán chạy</button>
+        <button type="button" role="radio" aria-checked="${!sp}" data-rank="kh">Khách mua nhiều</button>
+      </div>
+      <div class="seg seg-sm" role="radiogroup" aria-label="Sắp xếp theo">
+        <button type="button" role="radio" aria-checked="${BC.sort === 'rev'}" data-sort="rev">Theo doanh thu</button>
+        <button type="button" role="radio" aria-checked="${BC.sort === 'qty'}" data-sort="qty">${sp ? 'Theo số lượng' : 'Theo số chứng từ'}</button>
+      </div>
+      <div class="card list">${list}</div>
+      ${ranked.length > RANK_TOP ? `<button class="btn btn-ghost" data-all="1">${BC.all ? 'Thu gọn' : 'Xem tất cả ' + ranked.length}</button>` : ''}
+    </section>`;
+}
+
+$('s-baocao').addEventListener('click', (e) => {
+  const t = (sel) => e.target.closest(sel);
+  let b;
+  if ((b = t('[data-g]'))) { BC.gran = b.dataset.g; BC.shift = 0; BC.sel = null; BC.all = false; drawGran(); drawBaocao(); return; }
+  if ((b = t('[data-k]'))) { BC.sel = b.dataset.k; BC.all = false; drawBaocao(); return; }
+  if ((b = t('[data-nav]'))) { BC.shift = Math.max(0, BC.shift + Number(b.dataset.nav)); BC.sel = null; drawBaocao(); return; }
+  if ((b = t('[data-rank]'))) { BC.rank = b.dataset.rank; BC.all = false; drawBaocao(); return; }
+  if ((b = t('[data-sort]'))) { BC.sort = b.dataset.sort; drawBaocao(); return; }
+  if (t('[data-all]')) { BC.all = !BC.all; drawBaocao(); return; }
+  if (t('#bc-import')) importSheet();
+});
+
+// ── Đọc bảng Ecount (dán từ Excel hoặc file CSV) ──
+
+function parseDelimited(text) {
+  const head = text.split(/\r?\n/, 1)[0] || '';
+  const count = (c) => head.split(c).length - 1;
+  const delim = count('\t') ? '\t' : count(';') > count(',') ? ';' : ',';
+  const out = [];
+  let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c;
+    } else if (c === '"' && !cell) q = true;
+    else if (c === delim) { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); cell = '';
+      out.push(row); row = [];
+    } else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); out.push(row); }
+  return out.filter((r) => r.some((x) => String(x).trim()));
+}
+
+// Tên cột Ecount có thể khác nhau: so khớp theo từ khoá (đã bỏ dấu). EXACT: chỉ nhận khi tên cột trùng hẳn.
+const FIELDS = [
+  ['tt', 'Thành tiền', ['thanh tien', 'doanh thu', 'tien hang', 'tong tien', 'gia tri']],
+  ['sl', 'Số lượng', ['so luong', 'sl']],
+  ['dg', 'Đơn giá', ['don gia']],
+  ['vat', 'VAT', ['tien thue', 'tien vat', 'thue gtgt', 'vat']],
+  ['ma', 'Mã hàng', ['ma hang', 'ma san pham', 'ma sp', 'ma vat tu', 'ma hh', 'ma item']],
+  ['ten', 'Tên hàng', ['ten hang', 'ten san pham', 'ten sp', 'ten vat tu', 'ten hh', 'dien giai']],
+  ['so', 'Số chứng từ', ['so chung tu', 'so ct', 'so hoa don', 'so hd', 'so phieu', 'so don', 'chung tu']],
+  ['kh', 'Khách hàng', ['ten khach hang', 'khach hang', 'ten kh', 'ten doi tuong', 'doi tuong', 'khach']],
+  ['date', 'Ngày', ['ngay chung tu', 'ngay ct', 'ngay hach toan', 'ngay ban', 'ngay xuat', 'ngay']],
+];
+const EXACT = new Set(['sl', 'vat', 'khach', 'ngay', 'chung tu']);
+
+function mapColumns(row) {
+  const heads = row.map((c) => norm(c).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim());
+  const map = {};
+  const used = new Set();
+  FIELDS.forEach(([f, , syns]) => {
+    let best = -1, bestScore = 0;
+    heads.forEach((h, i) => {
+      if (!h || used.has(i)) return;
+      syns.forEach((s, si) => {
+        const exact = h === s;
+        const ok = exact || (!EXACT.has(s) && (h.startsWith(s) || h.includes(s)));
+        if (!ok) return;
+        const score = (exact ? 100 : h.startsWith(s) ? 50 : 20) - si;
+        if (score > bestScore) { bestScore = score; best = i; }
+      });
+    });
+    if (best >= 0) { map[f] = best; used.add(best); }
+  });
+  return map;
+}
+
+function parseNum(s) {
+  let t = String(s == null ? '' : s).trim().replace(/[^\d.,\-()]/g, '');
+  if (!t) return 0;
+  let neg = false;
+  if (/^\(.*\)$/.test(t)) { neg = true; t = t.slice(1, -1); }
+  if (t.startsWith('-')) { neg = true; t = t.slice(1); }
+  const dots = (t.match(/\./g) || []).length;
+  const commas = (t.match(/,/g) || []).length;
+  if (dots && commas) {
+    const dec = t.lastIndexOf(',') > t.lastIndexOf('.') ? ',' : '.';
+    t = t.split(dec === ',' ? '.' : ',').join('').replace(dec, '.');
+  } else if (dots > 1 || commas > 1) {
+    t = t.replace(/[.,]/g, '');
+  } else if (dots === 1 || commas === 1) {
+    const sep = dots ? '.' : ',';
+    const tail = t.length - t.indexOf(sep) - 1;
+    t = tail === 3 && !/^0[.,]/.test(t) ? t.replace(sep, '') : t.replace(sep, '.');
+  }
+  const n = Number(t);
+  return Number.isFinite(n) ? (neg ? -n : n) : NaN;
+}
+
+function parseDateCell(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (/^\d{5}(\.\d+)?$/.test(s) && Number(s) > 30000 && Number(s) < 70000) {
+    const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(s)) * 864e5);
+    return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
+  }
+  let m = /^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})/.exec(s);
+  if (m) return m[1] + '-' + pad2(m[2]) + '-' + pad2(m[3]);
+  m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/.exec(s);
+  if (m) return m[3] + '-' + pad2(m[2]) + '-' + pad2(m[1]);
+  return '';
+}
+
+function parseEcount(text) {
+  const table = parseDelimited(String(text || '').replace(/^﻿/, ''));
+  if (table.length < 2) throw new Error('Chưa thấy dữ liệu. Dán cả hàng tiêu đề và các dòng bên dưới.');
+  let hi = -1, map = null;
+  for (let i = 0; i < Math.min(table.length, 15); i++) {
+    const m = mapColumns(table[i]);
+    if (m.date !== undefined && (m.tt !== undefined || (m.sl !== undefined && m.dg !== undefined))) { hi = i; map = m; break; }
+  }
+  if (!map) throw new Error('Không tìm thấy hàng tiêu đề. Cần ít nhất cột Ngày và cột Thành tiền (hoặc Số lượng + Đơn giá).');
+  const get = (r, f) => (map[f] === undefined ? '' : String(r[map[f]] == null ? '' : r[map[f]]).trim());
+  const rows = [];
+  const seq = new Map();
+  let skipped = 0, filled = 0, date = '', so = '', kh = '';
+  for (let i = hi + 1; i < table.length; i++) {
+    const r = table[i];
+    const ma = get(r, 'ma'), ten = get(r, 'ten');
+    const d = parseDateCell(get(r, 'date'));
+    if (!d && !(ma || ten)) { skipped++; continue; }
+    let sl = map.sl === undefined ? 1 : parseNum(get(r, 'sl'));
+    const dg = map.dg === undefined ? 0 : parseNum(get(r, 'dg'));
+    let tt = map.tt === undefined ? NaN : parseNum(get(r, 'tt'));
+    if (Number.isNaN(tt) && map.tt === undefined) tt = sl * dg;
+    if (Number.isNaN(sl) || Number.isNaN(tt) || Number.isNaN(dg)) { skipped++; continue; }
+    if (d) { date = d; so = get(r, 'so'); kh = get(r, 'kh'); } else { filled++; }
+    if (!date) { skipped++; continue; }
+    const row = { date, so: get(r, 'so') || so, kh: get(r, 'kh') || kh, ma, ten, sl, dg, tt, vat: map.vat === undefined ? 0 : (parseNum(get(r, 'vat')) || 0) };
+    const base = [row.date, row.so, row.ma, row.sl, row.tt].join('|');
+    row.seq = (seq.get(base) || 0) + 1;
+    seq.set(base, row.seq);
+    rows.push(row);
+  }
+  if (!rows.length) throw new Error('Không đọc được dòng nào có ngày và thành tiền hợp lệ.');
+  const dates = rows.map((r) => r.date).sort();
+  return {
+    rows, map, skipped, filled, head: table[hi],
+    from: dates[0], to: dates[dates.length - 1],
+    total: rows.reduce((s, r) => s + r.tt, 0),
+    docs: new Set(rows.map((r) => r.so)).size,
+  };
+}
+
+const viDate = (s) => s.slice(8) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4);
+
+function importSheet() {
+  let parsed = null;
+  const check = () => {
+    showError('im-err', '');
+    $('im-go').disabled = true;
+    parsed = null;
+    try {
+      parsed = parseEcount($('im-text').value);
+    } catch (err) {
+      $('im-prev').innerHTML = '';
+      showError('im-err', err.message);
+      return;
+    }
+    const p = parsed;
+    $('im-prev').innerHTML = `<div class="card bc-kpi">
+      <strong>${p.rows.length} dòng · ${p.docs} chứng từ</strong>
+      <span class="small">Từ ${viDate(p.from)} đến ${viDate(p.to)}</span>
+      <strong class="bc-big">${esc(vnd(p.total))}</strong>
+      <span class="small muted">Tổng thành tiền. So với tổng trên Ecount, nếu lệch thì đừng nhập.</span>
+      ${p.skipped ? `<span class="small muted">Bỏ qua ${p.skipped} dòng (dòng tổng cộng hoặc thiếu số).</span>` : ''}
+      ${p.filled ? `<span class="small muted">${p.filled} dòng bỏ trống ngày: lấy theo dòng trên.</span>` : ''}
+      <span class="small muted">Cột nhận được: ${FIELDS.filter(([f]) => p.map[f] !== undefined).map(([f, n]) => esc(n) + ' ← "' + esc(p.head[p.map[f]]) + '"').join('; ')}.</span>
+    </div>`;
+    $('im-go').disabled = false;
+  };
+  openSheet(`<div class="sx">
+    <h2 id="sheet-title">Nhập doanh thu từ Ecount</h2>
+    <p class="muted small" style="margin:0">Xuất báo cáo bán hàng từ Ecount ra Excel, mở file, bôi đen cả bảng (gồm hàng tiêu đề), Copy rồi dán vào ô dưới. Nhập lại file cũ cũng không bị trùng.</p>
+    <div class="field"><label for="im-text">Dán dữ liệu</label><textarea id="im-text" rows="5" spellcheck="false" autofocus></textarea></div>
+    <div class="field"><label for="im-file">Hoặc chọn file CSV</label><input id="im-file" type="file" accept=".csv,.tsv,.txt"></div>
+    <div id="im-prev"></div>
+    <p class="alert" id="im-err" role="alert" hidden></p>
+    <button class="btn btn-ghost" data-act="check">Kiểm tra dữ liệu</button>
+    <button class="btn btn-primary btn-lg" id="im-go" data-act="go" disabled>Nhập vào sổ doanh thu</button>
+  </div>`, {
+    actions: {
+      check,
+      go: async () => {
+        if (!parsed) return;
+        showError('im-err', '');
+        let added = 0, skipped = 0;
+        try {
+          for (let i = 0; i < parsed.rows.length; i += 1000) {
+            const r = await api('dtImport', { rows: parsed.rows.slice(i, i + 1000), clientId: uuid() });
+            added += r.added;
+            skipped += r.skipped;
+          }
+        } catch (err) {
+          showError('im-err', err.message + (added ? ` (đã nhập ${added} dòng trước đó, bấm nhập lại sẽ bỏ qua các dòng này)` : ''));
+          return;
+        }
+        closeSheet();
+        toast(`Đã nhập ${added} dòng${skipped ? `, bỏ qua ${skipped} dòng đã có` : ''}.`);
+        BC.rows = null;
+        renderBaocao();
+      },
+    },
+  });
+  $('im-file').addEventListener('change', async () => {
+    const f = $('im-file').files[0];
+    if (!f) return;
+    $('im-text').value = await f.text();
+    check();
+  });
+  $('im-text').addEventListener('paste', () => setTimeout(check, 50));
 }
 
 // ───────────────────────── Sự kiện chung + khởi động ─────────────────────────
