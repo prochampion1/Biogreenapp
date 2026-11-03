@@ -115,17 +115,68 @@ async function api(action, data = {}, { quiet = false } = {}) {
 function setProducts(list) {
   state.products = list;
   state.byCode = new Map(list.map((p) => [p.code.toLowerCase(), p]));
+  // Báo các mã mới xuống ngưỡng kể từ lần trước (kể cả do người khác xuất). Lần đầu chỉ ghi nhớ.
+  const low = list.filter(isLow);
+  const seen = lowSeen();
+  if (seen) lowAlert(low.filter((p) => !seen.has(p.code.toLowerCase())));
+  saveLowSeen(new Set(low.map((p) => p.code.toLowerCase())));
 }
 
 function updateProduct(p) {
   if (!p) return;
-  const old = state.byCode.get(p.code.toLowerCase());
+  const c = p.code.toLowerCase();
+  const old = state.byCode.get(c);
   if (old) Object.assign(old, p);
   else {
     state.products.push(p);
-    state.byCode.set(p.code.toLowerCase(), p);
+    state.byCode.set(c, p);
+  }
+  const seen = lowSeen() || new Set();
+  if (isLow(p) && !seen.has(c)) {
+    seen.add(c);
+    saveLowSeen(seen);
+    lowAlert([state.byCode.get(c)]);
+  } else if (!isLow(p) && seen.delete(c)) saveLowSeen(seen);
+}
+
+// ── Báo hàng vừa xuống dưới mức tối thiểu ──
+// Máy nhớ các mã đang dưới ngưỡng đã báo (theo tài khoản); mã hồi lại rồi xuống lần nữa sẽ báo lại.
+const isLow = (p) => p.min != null && p.min > 0 && (p.status === 'SẮP HẾT' || p.status === 'HẾT HÀNG');
+const lowKey = () => 'kho-low-seen:' + (state.user ? state.user.username : '');
+function lowSeen() {
+  try {
+    const s = localStorage.getItem(lowKey());
+    return s ? new Set(JSON.parse(s)) : null;
+  } catch (e) {
+    return null;
   }
 }
+function saveLowSeen(set) {
+  try { localStorage.setItem(lowKey(), JSON.stringify([...set])); } catch (e) { /* bộ nhớ đầy: bỏ qua */ }
+}
+
+let lowShown = [];
+function lowAlert(list) {
+  if (!list.length) return;
+  list.forEach((p) => { lowShown = lowShown.filter((x) => x.code !== p.code).concat(p); });
+  const one = lowShown.length === 1 ? lowShown[0] : null;
+  $('la-text').innerHTML = one
+    ? `<b>${esc(nice(one.name))}</b> vừa xuống dưới mức tối thiểu: còn ${fmt(one.sellable)} / ${fmt(one.min)} ${esc(one.unit)}.`
+    : `<b>${lowShown.length} mặt hàng</b> vừa xuống dưới mức tối thiểu: ${lowShown.map((p) => esc(nice(p.name))).join(', ')}.`;
+  $('lowalert').hidden = false;
+  if (navigator.vibrate) navigator.vibrate(200);
+}
+function closeLowAlert() {
+  $('lowalert').hidden = true;
+  lowShown = [];
+}
+$('la-close').addEventListener('click', closeLowAlert);
+$('la-view').addEventListener('click', () => {
+  const one = lowShown.length === 1 ? lowShown[0] : null;
+  closeLowAlert();
+  if (one) productSheet(one);
+  else show('home');
+});
 
 function refreshHistory() {
   api('history', {}, { quiet: true }).then((h) => {
@@ -309,6 +360,7 @@ async function loadAll({ quiet = false } = {}) {
 
 function logout(expired = false) {
   stopCamera();
+  closeLowAlert();
   store.clear();
   state.token = null;
   state.user = null;
@@ -360,8 +412,7 @@ $('f-password').addEventListener('submit', async (e) => {
 // ───────────────────────── Trang chủ ─────────────────────────
 
 function needsAttention(p) {
-  if (p.status === 'KIỂM TRA LẠI') return true;
-  return p.min != null && p.min > 0 && (p.status === 'SẮP HẾT' || p.status === 'HẾT HÀNG');
+  return p.status === 'KIỂM TRA LẠI' || isLow(p);
 }
 
 function renderHome() {
@@ -372,7 +423,10 @@ function renderHome() {
   const d = new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' });
   $('h-date').textContent = d.charAt(0).toUpperCase() + d.slice(1) + ' · Kho Biogreen';
 
-  const low = state.products.filter(needsAttention)
+  const attn = state.products.filter(needsAttention);
+  $('h-low-n').textContent = attn.length;
+  $('h-low-n').hidden = !attn.length;
+  const low = attn
     .sort((a, b) => (a.sellable / (a.min || 1)) - (b.sellable / (b.min || 1)))
     .slice(0, 5);
   $('h-low').innerHTML = low.length
@@ -1253,9 +1307,21 @@ document.addEventListener('click', (e) => {
 
 // Quay lại app (từ nền) khi đang ở màn quét: mở lại camera.
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) stopCamera();
-  else if (state.current === 'scan' && $('sheet').hidden) startCamera();
+  if (document.hidden) { stopCamera(); return; }
+  if (state.current === 'scan' && $('sheet').hidden) startCamera();
+  refreshLow();
 });
+
+// Quay lại app sau ít nhất 1 phút: tải lại tồn để báo mã người khác vừa làm xuống ngưỡng.
+let lowCheckedAt = Date.now();
+function refreshLow() {
+  if (!state.token || !state.user || Date.now() - lowCheckedAt < 60000) return;
+  lowCheckedAt = Date.now();
+  api('products', {}, { quiet: true }).then((list) => {
+    setProducts(list);
+    if (state.current === 'home') renderHome();
+  }).catch(() => {});
+}
 
 async function init() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

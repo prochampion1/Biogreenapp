@@ -257,3 +257,8 @@ h2 { font-size: 16px; font-weight: 700; }
 .bom-edit { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
 .bom-edit input { width: 84px; height: 42px; border-radius: 10px; border: 1.5px solid var(--line-strong); padding: 0 10px; font-size: 16px; text-align: right; }
 
+/* Báo hàng vừa xuống dưới mức tối thiểu */
+.lowalert { position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 45; width: calc(100% - 24px); max-width: 520px; display: flex; align-items: center; gap: 10px; padding: 6px 4px 6px 14px; border-radius: 14px; background: var(--orange-soft); border: 1.5px solid var(--orange); color: var(--ink); font-size: 14px; line-height: 1.35; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); }
+.lowalert .la-ic { color: var(--orange); }
+.lowalert .link { color: var(--orange); font-size: 14px; padding: 10px 6px; }
+.h-count { display: inline-block; min-width: 20px; padding: 1px 6px; margin-left: 4px; border-radius: 10px; background: var(--red); color: #FFFFFF; font-size: 12px; text-align: center; vertical-align: 2px; }
