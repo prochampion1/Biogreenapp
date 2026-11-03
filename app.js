@@ -761,6 +761,12 @@ $('f-form').addEventListener('submit', async (e) => {
   }
 });
 
+// Link phiếu PDF máy chủ vừa lưu vào Drive (thư mục Phòng kho), hoặc báo nếu chưa lưu được.
+function pdfLine(r) {
+  if (r.pdf) return `<a class="btn btn-ghost" href="${esc(r.pdf)}" target="_blank" rel="noopener">Xem phiếu PDF đã lưu</a>`;
+  return r.pdfError ? `<p class="alert">${esc(r.pdfError)}</p>` : '';
+}
+
 function doneSheet(f, r) {
   const p = state.product;
   const where = f.mode === 'nhap' ? `vào ${f.to}` : f.mode === 'xuat' ? `từ ${f.from}` : `${f.from} → ${f.to}${r.so ? ' · ' + r.so : ''}`;
@@ -770,6 +776,7 @@ function doneSheet(f, r) {
     <h2 id="sheet-title" class="center">${MODE[f.mode].verb} ${fmt(f.qty)} ${esc(p.unit)}</h2>
     <p class="center muted" style="margin:0">${esc(nice(p.name))}<br>${esc(where)} · đã ghi vào tab ${tab}</p>
     ${stocksGrid(r.product)}
+    ${pdfLine(r)}
     <div class="grid2">
       <button class="btn btn-ghost" data-act="home">Về trang chủ</button>
       <button class="btn btn-primary" data-act="again">Quét tiếp</button>
@@ -976,7 +983,9 @@ $('kk-new').addEventListener('click', () => {
           state.kk.data = await api('kiemkeNewPeriod', { kho });
           closeSheet({ silent: true });
           renderKiemke();
-          toast('Đã sang kỳ kiểm kê mới.');
+          const r = state.kk.data;
+          if (r.pdfError) toast(r.pdfError, true);
+          else toast(r.pdf ? 'Đã sang kỳ mới. Biên bản kiểm kê đã lưu vào Drive.' : 'Đã sang kỳ kiểm kê mới.');
         } catch (err) {
           toast(err.message, true);
         }
@@ -1229,6 +1238,7 @@ function produceSheet(p) {
             <h2 id="sheet-title" class="center">Đã làm ra ${fmt(r.qty)} ${esc(p.unit)}</h2>
             <p class="center muted" style="margin:0">${esc(nice(p.name))}<br>Nhập vào ${esc(r.out)} · lệnh ${esc(r.so)}</p>
             <div class="card list">${r.used.map((u) => `<div class="bom-line"><span class="grow">${esc(nice(u.name))}</span><span class="num">−${fmt(u.qty)} ${esc(u.unit)}</span></div>`).join('')}</div>
+            ${pdfLine(r)}
             <button class="btn btn-primary" data-act="close">Xong</button>`, { actions: { close: () => closeSheet() } });
         } catch (err) {
           showError('sx-err', err.message);
