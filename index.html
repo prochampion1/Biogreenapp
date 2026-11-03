@@ -82,6 +82,7 @@
       <button class="tile" data-scan="chuyen"><span class="tile-ic t-chuyen" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/></svg></span><strong>Chuyển kho</strong><span>Giữa các kho</span></button>
       <button class="tile" data-go="kiemke"><span class="tile-ic t-kk" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 4h6v3H9zM7 5.5H5v15h14v-15h-2"/><path d="M8.5 13l2.5 2.5 4.5-5"/></svg></span><strong>Kiểm kê</strong><span>Đếm cuối tuần</span></button>
       <button class="tile" data-go="sanxuat"><span class="tile-ic t-sx" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 21V11l6 4v-4l6 4V6h4v15z"/></svg></span><strong>Sản xuất</strong><span>Định mức, làm thành phẩm</span></button>
+      <button class="tile" data-go="tem"><span class="tile-ic t-tem" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14"/></svg></span><strong>In tem</strong><span>Mã vạch cho máy in tem</span></button>
     </div>
     <section class="stack-sm">
       <div class="row-between"><h2>Cần chú ý <span class="h-count" id="h-low-n" hidden></span></h2><button class="link" data-go="stock">Xem tồn kho</button></div>
@@ -217,6 +218,25 @@
   <main class="content stack-sm" id="sx-list"></main>
 </section>
 
+<!-- In tem mã vạch -->
+<section class="screen" id="s-tem" hidden>
+  <header class="bar">
+    <button class="icon-btn" data-back aria-label="Quay lại"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1>In tem mã vạch</h1>
+    <button class="btn btn-primary btn-sm" id="tem-add">+ Thêm mã</button>
+  </header>
+  <main class="content stack-lg">
+    <div class="tem-cfg">
+      <div class="field"><label for="tem-size">Khổ tem</label><select id="tem-size"></select></div>
+      <div class="field"><label for="tem-dpi">Máy in</label><select id="tem-dpi"><option value="203">203 dpi (phổ biến)</option><option value="300">300 dpi</option></select></div>
+    </div>
+    <section class="stack-sm"><h2>Xem trước</h2><div class="tem-prev" id="tem-prev"></div></section>
+    <div class="card list" id="tem-list" hidden></div>
+    <p class="muted small" style="margin:0">Khi hộp thoại in mở: chọn máy in tem, khổ giấy đúng như trên, lề "Không" (None), tỉ lệ 100%.</p>
+  </main>
+  <div class="foot"><button class="btn btn-primary btn-lg" id="tem-print" disabled>In tem</button></div>
+</section>
+
 <!-- Tài khoản -->
 <section class="screen" id="s-account" hidden>
   <header class="bar">
@@ -251,6 +271,8 @@
   <button class="link" id="la-view">Xem</button>
   <button class="icon-btn" id="la-close" aria-label="Đóng thông báo"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 </div>
+<div id="print-area" aria-hidden="true"></div>
+<style id="tem-page"></style>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="busy" id="busy" hidden><span class="spinner" aria-label="Đang xử lý"></span></div>
 

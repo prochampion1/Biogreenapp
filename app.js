@@ -16,7 +16,7 @@ const MODE = {
   chuyen: { title: 'Chuyển kho', verb: 'Đã chuyển', save: 'Lưu phiếu chuyển' },
 };
 const SCAN_TITLE = { '': 'Quét mã vạch', nhap: 'Quét để nhập kho', xuat: 'Quét để xuất kho', chuyen: 'Quét để chuyển kho', kiemke: 'Quét để kiểm đếm' };
-const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'account'];
+const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'tem', 'account'];
 const LIST_LIMIT = 60;
 
 const $ = (id) => document.getElementById(id);
@@ -228,6 +228,7 @@ const RENDER = {
   stock: renderStock,
   kiemke: () => loadKiemke(),
   sanxuat: () => renderSanxuat(),
+  tem: renderTem,
   account: renderAccount,
 };
 
@@ -1286,6 +1287,143 @@ function bomEditSheet(p, lines) {
   };
   render();
 }
+
+// ───────────────────────── In tem mã vạch (máy in tem nhiệt) ─────────────────────────
+// Vẽ Code 128 (bộ B) ngay trên máy, mỗi tem là 1 trang đúng khổ cuộn. Trên tem: vạch + mã SP.
+
+const C128 = ['212222', '222122', '222221', '121223', '121322', '131222', '122213', '122312', '132212', '221213',
+  '221312', '231212', '112232', '122132', '122231', '113222', '123122', '123221', '223211', '221132',
+  '221231', '213212', '223112', '312131', '311222', '321122', '321221', '312212', '322112', '322211',
+  '212123', '212321', '232121', '111323', '131123', '131321', '112313', '132113', '132311', '211313',
+  '231113', '231311', '112133', '112331', '132131', '113123', '113321', '133121', '313121', '211331',
+  '231131', '213113', '213311', '213131', '311123', '311321', '331121', '312113', '312311', '332111',
+  '314111', '221411', '431111', '111224', '111422', '121124', '121421', '141122', '141221', '112214',
+  '112412', '122114', '122411', '142112', '142211', '241211', '221114', '413111', '241112', '134111',
+  '111242', '121142', '121241', '114212', '124112', '124211', '411212', '421112', '421211', '212141',
+  '214121', '412121', '111143', '111341', '131141', '114113', '114311', '411113', '411311', '113141',
+  '114131', '311141', '411131', '211412', '211214', '211232', '2331112'];
+const C128_QUIET = 10;
+
+// Độ rộng các vạch/khoảng trắng (đơn vị module), bắt đầu bằng vạch. null nếu có ký tự ngoài ASCII 32–126.
+function code128(text) {
+  const vals = [104];
+  for (const ch of String(text)) {
+    const c = ch.charCodeAt(0);
+    if (c < 32 || c > 126) return null;
+    vals.push(c - 32);
+  }
+  vals.push(vals.reduce((sum, v, i) => sum + v * (i || 1), 0) % 103, 106);
+  return vals.map((v) => C128[v]).join('').split('').map(Number);
+}
+
+const TEM_SIZES = ['50x30', '40x30', '50x25', '40x25', '35x25', '30x20'];
+const TEM_DEF = { size: '50x30', dpi: 203 };
+const tem = { queue: [] };
+function temCfg() {
+  try { return Object.assign({}, TEM_DEF, JSON.parse(store.get('kho.tem') || '{}')); } catch (e) { return Object.assign({}, TEM_DEF); }
+}
+
+// Một tem: SVG vạch có độ rộng module = số nguyên chấm in (tránh vạch méo trên máy nhiệt).
+function temSvg(code, cfg) {
+  const bars = code128(code);
+  if (!bars) return { err: 'Mã có ký tự không in được (dấu tiếng Việt?).' };
+  const [w, h] = cfg.size.split('x').map(Number);
+  const dot = 25.4 / cfg.dpi;
+  const mods = bars.reduce((a, b) => a + b, 0) + C128_QUIET * 2;
+  const k = Math.floor((w - 2) / (mods * dot));
+  const mod = Math.min(Math.max(1, k), 4) * dot; // tối đa 4 chấm/module cho mã ngắn
+  let x = C128_QUIET;
+  let rects = '';
+  bars.forEach((b, i) => {
+    if (i % 2 === 0) rects += `<rect x="${x}" y="0" width="${b}" height="1"/>`;
+    x += b;
+  });
+  const bw = mods * mod;
+  const barH = Math.max(8, h - 11);
+  return {
+    tooWide: k < 1,
+    html: `<div class="tem" style="width:${w}mm;height:${h}mm">
+      <svg class="tem-bar" viewBox="0 0 ${mods} 1" preserveAspectRatio="none" shape-rendering="crispEdges"
+        style="width:${bw.toFixed(3)}mm;height:${barH}mm" aria-label="Mã vạch ${esc(code)}">${rects}</svg>
+      <span class="tem-code" style="font-size:${code.length > 18 ? 2.6 : 3.2}mm">${esc(code)}</span>
+    </div>`,
+  };
+}
+
+function renderTem() {
+  const cfg = temCfg();
+  $('tem-size').innerHTML = TEM_SIZES.map((s) => `<option value="${s}"${s === cfg.size ? ' selected' : ''}>${s.replace('x', ' × ')} mm</option>`).join('');
+  $('tem-dpi').value = String(cfg.dpi);
+  drawTemQueue();
+}
+
+function drawTemQueue() {
+  const cfg = temCfg();
+  const q = tem.queue;
+  const total = q.reduce((a, it) => a + it.qty, 0);
+  const first = q.length ? temSvg(q[0].code, cfg) : null;
+  $('tem-prev').innerHTML = first ? (first.err ? `<p class="alert">${esc(first.err)}</p>` : first.html)
+    : '<p class="more">Chưa có mã nào. Bấm "+ Thêm mã".</p>';
+  $('tem-list').innerHTML = q.map((it, i) => {
+    const p = state.byCode.get(it.code.toLowerCase());
+    const t = temSvg(it.code, cfg);
+    const warn = t.err || (t.tooWide ? 'Mã quá dài cho khổ tem này, chọn khổ rộng hơn.' : '');
+    return `<div class="tem-row">
+      <span class="grow"><strong>${esc(p ? nice(p.name) : it.code)}</strong><span class="mono">${esc(it.code)}</span>
+        ${warn ? `<span class="small" style="color:var(--red)">${esc(warn)}</span>` : ''}</span>
+      <input type="number" inputmode="numeric" min="1" max="500" value="${it.qty}" data-i="${i}" aria-label="Số tem">
+      <button class="icon-btn" data-del="${i}" aria-label="Bỏ mã này"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>`;
+  }).join('');
+  $('tem-list').hidden = !q.length;
+  $('tem-print').disabled = !total;
+  $('tem-print').textContent = total ? `In ${fmt(total)} tem` : 'In tem';
+}
+
+function temAdd(p) {
+  const it = tem.queue.find((x) => x.code === p.code);
+  if (it) it.qty += 1;
+  else tem.queue.push({ code: p.code, qty: 1 });
+  drawTemQueue();
+}
+
+function saveTemCfg() {
+  store.set('kho.tem', JSON.stringify({ size: $('tem-size').value, dpi: Number($('tem-dpi').value) }));
+  drawTemQueue();
+}
+$('tem-size').addEventListener('change', saveTemCfg);
+$('tem-dpi').addEventListener('change', saveTemCfg);
+$('tem-add').addEventListener('click', () => {
+  pickSheet('Chọn mã cần in tem', () => true, (p) => { closeSheet(); temAdd(p); });
+});
+$('tem-list').addEventListener('input', (e) => {
+  const i = e.target.dataset.i;
+  if (i == null) return;
+  const n = Math.round(Number(e.target.value));
+  tem.queue[i].qty = Math.min(500, Math.max(1, isFinite(n) ? n : 1));
+  $('tem-print').textContent = `In ${fmt(tem.queue.reduce((a, it) => a + it.qty, 0))} tem`;
+});
+$('tem-list').addEventListener('change', drawTemQueue);
+$('tem-list').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-del]');
+  if (!b) return;
+  tem.queue.splice(Number(b.dataset.del), 1);
+  drawTemQueue();
+});
+$('tem-print').addEventListener('click', () => {
+  const cfg = temCfg();
+  const [w, h] = cfg.size.split('x');
+  const out = [];
+  for (const it of tem.queue) {
+    const t = temSvg(it.code, cfg);
+    if (t.err || t.tooWide) { toast(`${it.code}: ${t.err || 'mã quá dài cho khổ tem này.'}`, true); return; }
+    for (let n = 0; n < it.qty; n++) out.push(t.html);
+  }
+  $('tem-page').textContent = `@page { size: ${w}mm ${h}mm; margin: 0; }`;
+  $('print-area').innerHTML = out.join('');
+  window.print();
+});
+window.addEventListener('afterprint', () => { $('print-area').innerHTML = ''; });
 
 // ───────────────────────── Sự kiện chung + khởi động ─────────────────────────
 

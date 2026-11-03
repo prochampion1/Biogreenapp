@@ -262,3 +262,23 @@ h2 { font-size: 16px; font-weight: 700; }
 .lowalert .la-ic { color: var(--orange); }
 .lowalert .link { color: var(--orange); font-size: 14px; padding: 10px 6px; }
 .h-count { display: inline-block; min-width: 20px; padding: 1px 6px; margin-left: 4px; border-radius: 10px; background: var(--red); color: #FFFFFF; font-size: 12px; text-align: center; vertical-align: 2px; }
+
+/* In tem mã vạch */
+.t-tem { background: var(--track); color: var(--ink); }
+.tem-cfg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tem-prev { display: flex; justify-content: center; padding: 16px; border-radius: 18px; background: var(--track); overflow-x: auto; }
+.tem-prev .tem { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); }
+.tem { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1mm; padding: 1.5mm 1mm; box-sizing: border-box; overflow: hidden; color: #000000; }
+.tem-bar { display: block; fill: #000000; flex-shrink: 0; }
+.tem-code { font-family: var(--mono); font-weight: 700; line-height: 1; letter-spacing: 0.02em; white-space: nowrap; }
+.tem-row { display: flex; align-items: center; gap: 8px; }
+.tem-row .grow { display: flex; flex-direction: column; gap: 2px; }
+.tem-row input { width: 72px; height: 42px; border-radius: 10px; border: 1.5px solid var(--line-strong); padding: 0 10px; font-size: 16px; text-align: right; }
+#print-area { display: none; }
+@media print {
+  body > *:not(#print-area) { display: none !important; }
+  body { background: #FFFFFF; margin: 0; }
+  #print-area { display: block; }
+  #print-area .tem { break-after: page; page-break-after: always; }
+  #print-area .tem:last-child { break-after: auto; page-break-after: auto; }
+}
