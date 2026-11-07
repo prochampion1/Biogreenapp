@@ -16,7 +16,7 @@ const MODE = {
   chuyen: { title: 'Chuyển kho', verb: 'Đã chuyển', save: 'Lưu phiếu chuyển' },
 };
 const SCAN_TITLE = { '': 'Quét mã vạch', nhap: 'Quét để nhập kho', xuat: 'Quét để xuất kho', chuyen: 'Quét để chuyển kho', kiemke: 'Quét để kiểm đếm' };
-const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'tem', 'account'];
+const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'phieu', 'tem', 'account'];
 const LIST_LIMIT = 60;
 
 const $ = (id) => document.getElementById(id);
@@ -42,6 +42,7 @@ const state = {
   form: null,
   stockTab: 'low',
   kk: { kho: null, data: null },
+  phieu: null,
 };
 
 // ───────────────────────── Lưu phiên ─────────────────────────
@@ -228,6 +229,7 @@ const RENDER = {
   stock: renderStock,
   kiemke: () => loadKiemke(),
   sanxuat: () => renderSanxuat(),
+  phieu: () => renderPhieu(),
   tem: renderTem,
   account: renderAccount,
 };
@@ -1434,6 +1436,260 @@ $('tem-print').addEventListener('click', () => {
   window.print();
 });
 window.addEventListener('afterprint', () => { $('print-area').innerHTML = ''; });
+
+// ───────────────────────── Xuất theo ảnh phiếu ECOUNT ─────────────────────────
+// Máy chủ đọc mã bằng OCR; thủ kho nhập số lượng theo phiếu, kiểm tra rồi mới bấm trừ kho.
+
+const PHIEU_MAX_SIDE = 2000;
+const PHIEU_MAX_B64 = 2600000;
+const phieuKhos = () => allowedKhos().filter((k) => k !== KHO_MAU);
+
+function photoToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, PHIEU_MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * scale);
+      c.height = Math.round(img.naturalHeight * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      let q = 0.85;
+      let data = c.toDataURL('image/jpeg', q).split(',')[1];
+      while (data.length > PHIEU_MAX_B64 && q > 0.4) {
+        q -= 0.15;
+        data = c.toDataURL('image/jpeg', q).split(',')[1];
+      }
+      resolve(data);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Không mở được ảnh này. Chụp lại giúp mình.')); };
+    img.src = url;
+  });
+}
+
+function phieuIntro(error, reading) {
+  $('ph-foot').hidden = true;
+  $('ph-main').innerHTML = reading
+    ? '<div class="stack-sm center"><span class="spinner" aria-hidden="true"></span><p class="muted">Đang đọc phiếu, chờ khoảng 10 đến 30 giây…</p></div>'
+    : `${error ? `<p class="alert" role="alert">${esc(error)}</p>` : ''}
+      <p class="muted" style="margin:0">Đặt phiếu phẳng, đủ sáng, chụp thẳng và đủ cột Mã mặt hàng. App đọc mã, bạn nhập số lượng theo phiếu rồi mới trừ kho.</p>
+      <button class="btn btn-primary btn-lg" id="ph-shoot">Chụp phiếu</button>
+      <button class="btn btn-ghost" id="ph-choose">Chọn ảnh có sẵn</button>`;
+}
+
+function renderPhieu() {
+  if (state.phieu) drawPhieu();
+  else phieuIntro();
+}
+
+async function readPhieu(file) {
+  if (!file) return;
+  phieuIntro('', true);
+  try {
+    const image = await photoToBase64(file);
+    const r = await api('docPhieu', { image }, { quiet: true });
+    const khos = phieuKhos();
+    const last = store.get('kho.last.phieu');
+    state.phieu = {
+      so: r.so,
+      khach: r.khach,
+      dup: r.dup,
+      repeat: false,
+      kho: khos.includes(last) ? last : khos.includes('Kho trung tâm') ? 'Kho trung tâm' : khos[0] || null,
+      lines: r.lines.map((l) => ({ ...l, sl: 0, qty: 0, note: '', oddOk: null })),
+      clientId: uuid(),
+    };
+    if (state.current === 'phieu') drawPhieu();
+  } catch (err) {
+    state.phieu = null;
+    if (state.current === 'phieu') phieuIntro(err.message);
+    else toast(err.message, true);
+  }
+}
+
+// Tổng số cần trừ theo mã: hai dòng cùng mã trên phiếu phải cộng lại khi so tồn.
+function phieuNeed(ph) {
+  const need = new Map();
+  ph.lines.forEach((l) => {
+    if (l.code) need.set(l.code.toLowerCase(), (need.get(l.code.toLowerCase()) || 0) + (l.qty || 0));
+  });
+  return need;
+}
+
+// Trạng thái một dòng theo số lượng đang nhập.
+function phieuLineState(ph, l, need) {
+  const p = l.code && state.byCode.get(l.code.toLowerCase());
+  const short = !!(p && ph.kho && need.get(l.code.toLowerCase()) > p.stock[ph.kho]);
+  const odd = l.factor > 1 && l.sl > 0 && !Number.isInteger(l.qty) && l.oddOk !== l.sl;
+  const msg = [
+    short ? `${ph.kho} chỉ còn ${fmt(p.stock[ph.kho])} ${p.unit}.` : '',
+    odd ? `${fmt(l.sl)} ${l.srcUnit} = ${fmt(l.qty)} ${l.unit}, không chia hết.` : '',
+    l.msg,
+  ].filter(Boolean).join(' ');
+  const cls = l.status === 'none' || short ? ' bad' : l.status === 'check' || odd ? ' warn' : '';
+  const stock = p && ph.kho ? `${KHO_SHORT[ph.kho]} còn ${fmt(p.stock[ph.kho])} ${p.unit}` : '';
+  const hint = [l.factor > 1 && l.sl > 0 ? `= ${fmt(l.qty)} ${l.unit}` : '', stock].filter(Boolean).join(' · ');
+  return { p, short, odd, msg, cls, hint, ready: !!l.code && l.qty > 0 && l.status === 'ok' && !short && !odd };
+}
+
+function drawPhieu() {
+  const ph = state.phieu;
+  const lines = ph.lines.map((l, i) => {
+    const p = l.code && state.byCode.get(l.code.toLowerCase());
+    return `<div class="card ph-line" data-ph-card="${i}">
+      <div class="ph-top"><span class="grow"><strong>${esc(p ? nice(p.name) : 'Chưa nhận ra mã')}</strong><br><span class="mono">${esc(p ? p.code : l.ma)}</span></span>
+        <button class="icon-btn" data-ph="del" data-i="${i}" aria-label="Bỏ dòng này"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <p class="ph-src">Đọc từ phiếu: ${esc(l.ma)}</p>
+      <p class="ph-msg" data-ph-msg="${i}"></p>
+      <div class="ph-qty"><input inputmode="decimal" data-ph-qty="${i}" value="${l.sl ? esc(fmt(l.sl)) : ''}" placeholder="Số lượng" aria-label="Số lượng trên phiếu, dòng ${i + 1}" autocomplete="off"><span class="small muted">${esc(l.srcUnit || (p ? p.unit : ''))}</span></div>
+      <span class="small muted" data-ph-hint="${i}"></span>
+      <div class="ph-acts">
+        <button class="btn btn-ghost btn-sm" data-ph="pick" data-i="${i}">Chọn mã khác</button>
+        <button class="btn btn-primary btn-sm" data-ph="okline" data-i="${i}" data-ph-ok="${i}" hidden>Đã kiểm tra, đúng</button>
+      </div>
+    </div>`;
+  }).join('');
+  const dup = ph.dup
+    ? `<p class="alert" role="alert">Phiếu này đã xuất ngày ${esc(ph.dup.date)} (${esc(ph.dup.who)}, ${fmt(ph.dup.lines)} dòng).${isAdmin() ? '' : ' Nhờ quản lý nếu đây là đợt giao tiếp theo.'}</p>
+      ${isAdmin() ? `<label class="ph-check"><input type="checkbox" id="ph-repeat" ${ph.repeat ? 'checked' : ''}> Đây là đợt giao tiếp theo, vẫn xuất</label>` : ''}`
+    : '';
+  $('ph-main').innerHTML = `${dup}
+    <div class="grid2">
+      <div class="field span2"><label for="ph-so">Số phiếu</label><input id="ph-so" value="${esc(ph.so)}" placeholder="Đọc trên phiếu, vd 202611/DO/0041" autocomplete="off" spellcheck="false"></div>
+      <div class="field span2"><label for="ph-khach">Khách hàng</label><input id="ph-khach" value="${esc(ph.khach)}" autocomplete="off"></div>
+    </div>
+    <section class="stack-sm"><span class="label">Xuất từ kho</span>
+      <div class="chips" role="radiogroup">${phieuKhos().map((k) => `<button type="button" class="chip" role="radio" aria-checked="${ph.kho === k}" data-ph="kho" data-kho="${esc(k)}">${esc(k)}</button>`).join('')}</div>
+    </section>
+    <section class="stack-sm"><h2>Hàng trên phiếu (${ph.lines.length} dòng)</h2>
+      <p class="muted small" style="margin:0">Đếm lại số dòng so với phiếu giấy, rồi nhập số lượng đúng như trên phiếu.</p>
+      ${lines || '<p class="more">Chưa có dòng nào.</p>'}
+      <button class="btn btn-ghost" data-ph="add">+ Thêm mã còn thiếu</button></section>`;
+  $('ph-foot').hidden = false;
+  showError('ph-err', '');
+  updatePhieuSave();
+}
+
+// Cập nhật tại chỗ, không vẽ lại, để không mất ô đang nhập khi chuyển dòng.
+function updatePhieuSave() {
+  const ph = state.phieu;
+  const need = phieuNeed(ph);
+  const q = (attr, i) => $('ph-main').querySelector(`[${attr}="${i}"]`);
+  const states = ph.lines.map((l, i) => {
+    const st = phieuLineState(ph, l, need);
+    q('data-ph-card', i).className = 'card ph-line' + st.cls;
+    const m = q('data-ph-msg', i);
+    m.textContent = st.msg || '';
+    m.hidden = !st.msg;
+    q('data-ph-hint', i).textContent = st.hint;
+    q('data-ph-ok', i).hidden = !((l.status === 'check') || st.odd);
+    return st;
+  });
+  $('ph-save').disabled = !(ph.so.trim() && ph.kho && ph.lines.length && states.every((s) => s.ready)
+    && (!ph.dup || (isAdmin() && ph.repeat)));
+}
+
+function phieuPick(onPick) {
+  pickSheet('Chọn mã để trừ kho', () => true, (p) => {
+    onPick({ code: p.code, name: p.name, unit: p.unit, srcUnit: p.unit, factor: 1, status: 'ok', msg: '', note: '', oddOk: null });
+    closeSheet({ silent: true });
+    drawPhieu();
+  });
+}
+
+$('s-phieu').addEventListener('click', (e) => {
+  if (e.target.closest('#ph-shoot')) { $('ph-cam').click(); return; }
+  if (e.target.closest('#ph-choose')) { $('ph-pick').click(); return; }
+  const b = e.target.closest('[data-ph]');
+  const ph = state.phieu;
+  if (!b || !ph) return;
+  const i = Number(b.dataset.i);
+  if (b.dataset.ph === 'kho') { ph.kho = b.dataset.kho; drawPhieu(); }
+  if (b.dataset.ph === 'del') { ph.lines.splice(i, 1); drawPhieu(); }
+  if (b.dataset.ph === 'okline') {
+    const l = ph.lines[i];
+    l.status = 'ok';
+    l.msg = '';
+    if (!Number.isInteger(l.qty)) l.oddOk = l.sl;
+    updatePhieuSave();
+  }
+  if (b.dataset.ph === 'pick') {
+    phieuPick((v) => {
+      const l = ph.lines[i];
+      Object.assign(l, v, { sl: 0, qty: 0 });
+    });
+  }
+  if (b.dataset.ph === 'add') {
+    phieuPick((v) => { ph.lines.push({ ma: 'Thêm tay', sl: 0, qty: 0, ...v }); });
+  }
+});
+
+$('s-phieu').addEventListener('input', (e) => {
+  const ph = state.phieu;
+  if (!ph) return;
+  if (e.target.id === 'ph-so') ph.so = e.target.value;
+  if (e.target.id === 'ph-khach') ph.khach = e.target.value;
+  if (e.target.id === 'ph-repeat') ph.repeat = e.target.checked;
+  if (e.target.dataset.phQty != null) {
+    const l = ph.lines[Number(e.target.dataset.phQty)];
+    const n = parseQty(e.target.value);
+    l.sl = Number.isNaN(n) ? 0 : n;
+    l.qty = round6(l.sl / l.factor);
+    l.note = l.factor > 1 && l.sl > 0 ? `${fmt(l.sl)} ${l.srcUnit} = ${fmt(l.qty)} ${l.unit}` : '';
+  }
+  updatePhieuSave();
+});
+
+['ph-cam', 'ph-pick'].forEach((id) => {
+  $(id).addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    readPhieu(f);
+  });
+});
+
+$('ph-again').addEventListener('click', () => {
+  state.phieu = null;
+  phieuIntro();
+});
+
+$('ph-save').addEventListener('click', async () => {
+  const ph = state.phieu;
+  if (!ph || $('ph-save').disabled) return;
+  showError('ph-err', '');
+  try {
+    const r = await api('xuatPhieu', {
+      so: ph.so.trim(),
+      kho: ph.kho,
+      khach: ph.khach.trim(),
+      repeat: ph.repeat,
+      clientId: ph.clientId,
+      lines: ph.lines.map((l) => ({ code: l.code, qty: l.qty, note: l.note })),
+    });
+    r.products.forEach(updateProduct);
+    store.set('kho.last.phieu', ph.kho);
+    refreshHistory();
+    state.phieu = null;
+    openSheet(`<span class="done-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      <h2 id="sheet-title" class="center">Đã trừ kho phiếu ${esc(r.so)}</h2>
+      <p class="center muted" style="margin:0">Từ ${esc(r.kho)} · đã ghi vào tab "Xuất kho"</p>
+      <div class="card list">${r.lines.map((l) => `<div class="bom-line"><span class="grow">${esc(nice(l.name))}</span><span class="num">−${fmt(l.qty)} ${esc(l.unit)}</span></div>`).join('')}</div>
+      ${pdfLine(r)}
+      <div class="grid2">
+        <button class="btn btn-ghost" data-act="home">Về trang chủ</button>
+        <button class="btn btn-primary" data-act="again">Chụp phiếu tiếp</button>
+      </div>`, {
+      actions: {
+        home: () => { state.stack = []; show('home', { push: false }); },
+        again: () => { closeSheet({ silent: true }); phieuIntro(); },
+      },
+      onClose: () => phieuIntro(),
+    });
+  } catch (err) {
+    showError('ph-err', err.message);
+  }
+});
 
 // ───────────────────────── Sự kiện chung + khởi động ─────────────────────────
 

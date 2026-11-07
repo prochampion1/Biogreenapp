@@ -282,3 +282,19 @@ h2 { font-size: 16px; font-weight: 700; }
   #print-area .tem { break-after: page; page-break-after: always; }
   #print-area .tem:last-child { break-after: auto; page-break-after: auto; }
 }
+
+/* Chụp phiếu xuất */
+.tile.wide { grid-column: span 2; }
+.ph-line { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.ph-line.warn { border-color: var(--amber-ink); background: var(--amber-soft); }
+.ph-line.bad { border-color: var(--red); background: var(--red-soft); }
+.ph-top { display: flex; align-items: flex-start; gap: 8px; }
+.ph-top strong { font-size: 15px; font-weight: 600; }
+.ph-src { font-size: 12px; color: var(--muted); margin: 0; }
+.ph-msg { font-size: 13px; margin: 0; color: var(--amber-ink); }
+.ph-line.bad .ph-msg { color: var(--red-ink); }
+.ph-qty { display: flex; align-items: center; gap: 8px; }
+.ph-qty input { width: 120px; height: 44px; border-radius: 10px; border: 1.5px solid var(--line-strong); background: var(--surface); padding: 0 10px; font-size: 16px; font-weight: 600; text-align: right; }
+.ph-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.ph-check { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.ph-check input { width: 22px; height: 22px; }

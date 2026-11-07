@@ -83,6 +83,7 @@
       <button class="tile" data-go="kiemke"><span class="tile-ic t-kk" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 4h6v3H9zM7 5.5H5v15h14v-15h-2"/><path d="M8.5 13l2.5 2.5 4.5-5"/></svg></span><strong>Kiểm kê</strong><span>Đếm cuối tuần</span></button>
       <button class="tile" data-go="sanxuat"><span class="tile-ic t-sx" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 21V11l6 4v-4l6 4V6h4v15z"/></svg></span><strong>Sản xuất</strong><span>Định mức, làm thành phẩm</span></button>
       <button class="tile" data-go="tem"><span class="tile-ic t-tem" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14"/></svg></span><strong>In tem</strong><span>Mã vạch cho máy in tem</span></button>
+      <button class="tile wide" data-go="phieu"><span class="tile-ic t-xuat" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8h4l2-3h4l2 3h4v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span><strong>Chụp phiếu xuất</strong><span>Chụp phiếu ECOUNT, kiểm tra rồi trừ kho</span></button>
     </div>
     <section class="stack-sm">
       <div class="row-between"><h2>Cần chú ý <span class="h-count" id="h-low-n" hidden></span></h2><button class="link" data-go="stock">Xem tồn kho</button></div>
@@ -216,6 +217,22 @@
     </div>
   </div>
   <main class="content stack-sm" id="sx-list"></main>
+</section>
+
+<!-- Xuất theo ảnh phiếu ECOUNT -->
+<section class="screen mode-xuat" id="s-phieu" hidden>
+  <header class="bar">
+    <button class="icon-btn" data-back aria-label="Quay lại"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1>Chụp phiếu xuất</h1>
+  </header>
+  <input type="file" id="ph-cam" accept="image/*" capture="environment" hidden>
+  <input type="file" id="ph-pick" accept="image/*" hidden>
+  <main class="content stack-lg" id="ph-main"></main>
+  <div class="foot" id="ph-foot" hidden>
+    <p class="alert" id="ph-err" role="alert" hidden></p>
+    <button class="btn btn-primary btn-lg" id="ph-save" disabled>Xác nhận xuất kho</button>
+    <button class="btn btn-ghost" id="ph-again">Chụp lại</button>
+  </div>
 </section>
 
 <!-- In tem mã vạch -->
