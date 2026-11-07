@@ -1471,7 +1471,7 @@ function photoToBase64(file) {
 function phieuIntro(error, reading) {
   $('ph-foot').hidden = true;
   $('ph-main').innerHTML = reading
-    ? '<div class="stack-sm center"><span class="spinner" aria-hidden="true"></span><p class="muted">Đang đọc phiếu, chờ khoảng 10 đến 30 giây…</p></div>'
+    ? '<div class="stack-sm center"><span class="spinner" aria-hidden="true"></span><p class="muted">Đang đọc phiếu, chờ vài giây…</p></div>'
     : `${error ? `<p class="alert" role="alert">${esc(error)}</p>` : ''}
       <p class="muted" style="margin:0">Đặt phiếu phẳng, đủ sáng, chụp thẳng và đủ cột Mã mặt hàng. App đọc mã, bạn nhập số lượng theo phiếu rồi mới trừ kho.</p>
       <button class="btn btn-primary btn-lg" id="ph-shoot">Chụp phiếu</button>
@@ -1556,7 +1556,7 @@ function drawPhieu() {
     : '';
   $('ph-main').innerHTML = `${dup}
     <div class="grid2">
-      <div class="field span2"><label for="ph-so">Số phiếu</label><input id="ph-so" value="${esc(ph.so)}" placeholder="Đọc trên phiếu, vd 202611/DO/0041" autocomplete="off" spellcheck="false"></div>
+      <div class="field span2"><label for="ph-so">Số phiếu (so lại với phiếu giấy)</label><input id="ph-so" value="${esc(ph.so)}" placeholder="vd 202611/DO/0041" autocomplete="off" spellcheck="false"><p class="ph-msg" id="ph-so-msg" hidden></p></div>
       <div class="field span2"><label for="ph-khach">Khách hàng</label><input id="ph-khach" value="${esc(ph.khach)}" autocomplete="off"></div>
     </div>
     <section class="stack-sm"><span class="label">Xuất từ kho</span>
@@ -1571,9 +1571,22 @@ function drawPhieu() {
   updatePhieuSave();
 }
 
+// Số phiếu bắt đầu bằng năm tháng. OCR đọc lệch số thì chống trừ trùng không bắt được, nên nhắc so lại.
+function phieuSoMsg(so) {
+  const m = /^(\d{4})(\d{2})\//.exec(so.trim());
+  if (!m) return so.trim() ? 'Số phiếu không đúng dạng 202611/DO/0041.' : 'Nhập số phiếu.';
+  const d = new Date();
+  const now = d.getFullYear() * 12 + d.getMonth();
+  const age = now - (Number(m[1]) * 12 + Number(m[2]) - 1);
+  return age === 0 || age === 1 ? '' : `Tháng ${m[2]}/${m[1]} khác tháng hiện tại, có thể đọc sai. So lại với phiếu giấy.`;
+}
+
 // Cập nhật tại chỗ, không vẽ lại, để không mất ô đang nhập khi chuyển dòng.
 function updatePhieuSave() {
   const ph = state.phieu;
+  const soMsg = phieuSoMsg(ph.so);
+  $('ph-so-msg').textContent = soMsg;
+  $('ph-so-msg').hidden = !soMsg;
   const need = phieuNeed(ph);
   const q = (attr, i) => $('ph-main').querySelector(`[${attr}="${i}"]`);
   const states = ph.lines.map((l, i) => {
