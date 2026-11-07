@@ -135,7 +135,7 @@ h2 { font-size: 16px; font-weight: 700; }
 .q-nhap { color: var(--green); }
 .q-xuat { color: var(--orange); }
 
-.tabbar { position: sticky; bottom: 0; height: calc(68px + var(--safe-b)); padding-bottom: var(--safe-b); background: var(--surface); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tabbar { position: sticky; bottom: 0; height: calc(68px + var(--safe-b)); padding-bottom: var(--safe-b); background: var(--surface); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .tabbar button { border: 0; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; color: var(--muted); }
 .tabbar button[aria-current="page"] { color: var(--green); font-weight: 600; }
 
@@ -298,3 +298,9 @@ h2 { font-size: 16px; font-weight: 700; }
 .ph-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .ph-check { display: flex; align-items: center; gap: 10px; font-size: 14px; }
 .ph-check input { width: 22px; height: 22px; }
+
+/* Danh sách phiếu ECOUNT */
+.dp-item { width: 100%; text-align: left; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; color: var(--ink); }
+.dp-item strong { font-size: 15px; font-weight: 700; }
+.dp-item span { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.dp-info { margin: 0; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }

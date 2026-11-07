@@ -16,7 +16,7 @@ const MODE = {
   chuyen: { title: 'Chuyển kho', verb: 'Đã chuyển', save: 'Lưu phiếu chuyển' },
 };
 const SCAN_TITLE = { '': 'Quét mã vạch', nhap: 'Quét để nhập kho', xuat: 'Quét để xuất kho', chuyen: 'Quét để chuyển kho', kiemke: 'Quét để kiểm đếm' };
-const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'phieu', 'tem', 'account'];
+const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'phieu', 'dsphieu', 'tem', 'account'];
 const LIST_LIMIT = 60;
 
 const $ = (id) => document.getElementById(id);
@@ -43,6 +43,7 @@ const state = {
   stockTab: 'low',
   kk: { kho: null, data: null },
   phieu: null,
+  ds: { list: null, range: 'all' },
 };
 
 // ───────────────────────── Lưu phiên ─────────────────────────
@@ -230,6 +231,7 @@ const RENDER = {
   kiemke: () => loadKiemke(),
   sanxuat: () => renderSanxuat(),
   phieu: () => renderPhieu(),
+  dsphieu: () => loadDsPhieu(),
   tem: renderTem,
   account: renderAccount,
 };
@@ -1490,13 +1492,12 @@ async function readPhieu(file) {
     const image = await photoToBase64(file);
     const r = await api('docPhieu', { image }, { quiet: true });
     const khos = phieuKhos();
-    const last = store.get('kho.last.phieu');
     state.phieu = {
       so: r.so,
       khach: r.khach,
       dup: r.dup,
       repeat: false,
-      kho: khos.includes(last) ? last : khos.includes('Kho trung tâm') ? 'Kho trung tâm' : khos[0] || null,
+      kho: khos.includes('Kho trung tâm') ? 'Kho trung tâm' : khos[0] || null, // kho tổng
       lines: r.lines.map((l) => ({ ...l, sl: 0, qty: 0, note: '', oddOk: null })),
       clientId: uuid(),
     };
@@ -1681,9 +1682,9 @@ $('ph-save').addEventListener('click', async () => {
       lines: ph.lines.map((l) => ({ code: l.code, qty: l.qty, note: l.note })),
     });
     r.products.forEach(updateProduct);
-    store.set('kho.last.phieu', ph.kho);
     refreshHistory();
     state.phieu = null;
+    state.ds.list = null;
     openSheet(`<span class="done-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
       <h2 id="sheet-title" class="center">Đã trừ kho phiếu ${esc(r.so)}</h2>
       <p class="center muted" style="margin:0">Từ ${esc(r.kho)} · đã ghi vào tab "Xuất kho"</p>
@@ -1702,6 +1703,81 @@ $('ph-save').addEventListener('click', async () => {
   } catch (err) {
     showError('ph-err', err.message);
   }
+});
+
+// ───────────────────────── Tab Phiếu: phiếu ECOUNT đã trừ kho ─────────────────────────
+
+const DS_RANGES = [{ id: 'all', label: 'Tất cả', days: 0 }, { id: 'today', label: 'Hôm nay', days: 1 }, { id: 'week', label: '7 ngày', days: 7 }];
+
+async function loadDsPhieu(force) {
+  renderDsPhieu();
+  if (state.ds.list && !force) return;
+  try {
+    state.ds.list = await api('phieuList');
+  } catch (err) {
+    if (!state.ds.list) $('dp-list').innerHTML = `<p class="alert" role="alert">${esc(err.message)}</p>`;
+    toast(err.message, true);
+    return;
+  }
+  if (state.current === 'dsphieu') renderDsPhieu();
+}
+
+function renderDsPhieu() {
+  const ds = state.ds;
+  $('dp-range').innerHTML = DS_RANGES.map((r) => `<button data-r="${r.id}" aria-pressed="${ds.range === r.id}">${r.label}</button>`).join('');
+  if (!ds.list) { $('dp-list').innerHTML = '<p class="more">Đang tải…</p>'; return; }
+  const range = DS_RANGES.find((r) => r.id === ds.range);
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (range.days - 1));
+  const q = norm($('dp-q').value).trim();
+  const list = ds.list.filter((p) => (!range.days || p.ts >= start.getTime())
+    && (!q || norm([p.so, p.khach, ...p.lines.map((l) => l.code + ' ' + l.name)].join(' ')).includes(q)));
+  $('dp-list').innerHTML = list.length
+    ? `<p class="muted small" style="margin:0">${fmt(list.length)} phiếu</p>` + list.slice(0, LIST_LIMIT).map((p) => {
+      const when = p.lines[p.lines.length - 1].time;
+      return `<button class="card dp-item" data-so="${esc(p.so)}"><strong>${esc(p.so)}</strong>
+        <span>${esc(p.khach || 'Không ghi khách')}</span>
+        <span>${esc(when)} · ${fmt(p.lines.length)} dòng · ${esc(p.lines[0].kho)}</span></button>`;
+    }).join('') + (list.length > LIST_LIMIT ? `<p class="more">Còn ${fmt(list.length - LIST_LIMIT)} phiếu nữa, gõ để tìm.</p>` : '')
+    : `<p class="more">${ds.list.length ? 'Không có phiếu nào khớp.' : 'Chưa có phiếu ECOUNT nào được trừ kho.'}</p>`;
+}
+
+function dsPhieuSheet(p) {
+  const whos = [...new Set(p.lines.map((l) => l.who).filter(Boolean))].join(', ');
+  openSheet(`<h2 id="sheet-title">${esc(p.so)}</h2>
+    <p class="dp-info">${esc(p.khach || 'Không ghi khách')}<br>Người xuất: ${esc(whos || 'không rõ')}</p>
+    <div class="card list">${p.lines.map((l) => `<div class="bom-line"><span class="grow">${esc(nice(l.name))}<br><span class="mono">${esc(l.code)}</span><br><small>${esc(l.time)} · ${esc(l.kho)}${l.note ? ' · ' + esc(l.note) : ''}</small></span><span class="num">−${fmt(l.qty)} ${esc(l.unit)}</span></div>`).join('')}</div>
+    <div id="dp-pdf"></div>
+    <button class="btn btn-ghost" data-act="pdf">Tìm phiếu PDF</button>
+    <button class="btn btn-primary" data-act="close">Đóng</button>`, {
+    actions: {
+      close: () => closeSheet(),
+      pdf: async () => {
+        try {
+          const files = await api('phieuPdf', { so: p.so });
+          if (!$('dp-pdf')) return;
+          $('dp-pdf').innerHTML = files.length
+            ? files.map((f) => `<a class="btn btn-ghost" href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a>`).join('')
+            : '<p class="dp-info">Không có PDF gộp cho phiếu này. Phiếu xuất tay từng mã có PDF riêng trong thư mục Phòng kho.</p>';
+        } catch (err) {
+          toast(err.message, true);
+        }
+      },
+    },
+  });
+}
+
+$('dp-q').addEventListener('input', renderDsPhieu);
+$('dp-refresh').addEventListener('click', () => loadDsPhieu(true));
+$('dp-range').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-r]');
+  if (b) { state.ds.range = b.dataset.r; renderDsPhieu(); }
+});
+$('dp-list').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-so]');
+  const p = b && state.ds.list.find((x) => x.so === b.dataset.so);
+  if (p) dsPhieuSheet(p);
 });
 
 // ───────────────────────── Sự kiện chung + khởi động ─────────────────────────
