@@ -269,7 +269,7 @@ h2 { font-size: 16px; font-weight: 700; }
 .tem-prev { display: flex; justify-content: center; padding: 16px; border-radius: 18px; background: var(--track); overflow-x: auto; }
 .tem-prev .tem { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); }
 .tem { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1mm; padding: 1.5mm 1mm; box-sizing: border-box; overflow: hidden; color: #000000; }
-.tem-bar { display: block; fill: #000000; flex-shrink: 0; }
+.tem-bar { display: block; fill: #000000; stroke: none; flex-shrink: 0; }
 .tem-code { font-family: var(--mono); font-weight: 700; line-height: 1; letter-spacing: 0.02em; white-space: nowrap; }
 .tem-row { display: flex; align-items: center; gap: 8px; }
 .tem-row .grow { display: flex; flex-direction: column; gap: 2px; }
@@ -304,3 +304,11 @@ h2 { font-size: 16px; font-weight: 700; }
 .dp-item strong { font-size: 15px; font-weight: 700; }
 .dp-item span { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 .dp-info { margin: 0; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* Tìm mã */
+.tm-view { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 12px; border-radius: 18px; background: #FFFFFF; border: 1px solid var(--line); text-align: center; color: #000000; }
+.tm-name { font-size: 15px; color: var(--ink); }
+.tm-bar { display: block; width: 100%; height: 130px; fill: #000000; stroke: none; }
+.tm-code { font-size: 20px; font-weight: 700; letter-spacing: 0.04em; word-break: break-all; }
+#tm-list .card.product { width: 100%; text-align: left; }
+#tm-list .card.product.on { border-color: var(--green, #1E6B45); box-shadow: inset 4px 0 0 var(--green, #1E6B45); }

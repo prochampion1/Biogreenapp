@@ -16,7 +16,7 @@ const MODE = {
   chuyen: { title: 'Chuyển kho', verb: 'Đã chuyển', save: 'Lưu phiếu chuyển' },
 };
 const SCAN_TITLE = { '': 'Quét mã vạch', nhap: 'Quét để nhập kho', xuat: 'Quét để xuất kho', chuyen: 'Quét để chuyển kho', kiemke: 'Quét để kiểm đếm' };
-const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'phieu', 'dsphieu', 'tem', 'account'];
+const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'phieu', 'dsphieu', 'tem', 'timma', 'account'];
 const LIST_LIMIT = 60;
 
 const $ = (id) => document.getElementById(id);
@@ -233,6 +233,7 @@ const RENDER = {
   phieu: () => renderPhieu(),
   dsphieu: () => loadDsPhieu(),
   tem: renderTem,
+  timma: renderTimma,
   account: renderAccount,
 };
 
@@ -1796,6 +1797,66 @@ document.addEventListener('click', (e) => {
     input.type = showPw ? 'text' : 'password';
     eye.setAttribute('aria-label', showPw ? 'Ẩn mật khẩu' : 'Hiện mật khẩu');
   }
+});
+
+// ───────────────────────── Tìm mã (hiện mã vạch lớn trên màn hình để quét) ─────────────────────────
+// Danh sách lấy từ tab Sản phẩm (tải lại mỗi lần mở màn này), nên mã mới thêm vào Sheet hiện ngay.
+
+const tm = { code: '' };
+
+function tmBarcode(code) {
+  const bars = code128(code);
+  if (!bars) return '<p class="alert">Mã có ký tự không vẽ được mã vạch (dấu tiếng Việt?).</p>';
+  const mods = bars.reduce((a, b) => a + b, 0) + C128_QUIET * 2;
+  let x = C128_QUIET;
+  let rects = '';
+  bars.forEach((b, i) => {
+    if (i % 2 === 0) rects += `<rect x="${x}" y="0" width="${b}" height="1"/>`;
+    x += b;
+  });
+  return `<svg class="tm-bar" viewBox="0 0 ${mods} 1" preserveAspectRatio="none" shape-rendering="crispEdges" role="img" aria-label="Mã vạch ${esc(code)}">${rects}</svg>`;
+}
+
+function drawTimma() {
+  const q = $('tm-q').value;
+  const p = tm.code ? state.byCode.get(tm.code.toLowerCase()) : null;
+  $('tm-view').hidden = !p;
+  if (p) {
+    $('tm-view').innerHTML = `<strong class="tm-name">${esc(nice(p.name))}</strong>
+      ${tmBarcode(p.code)}
+      <span class="tm-code mono">${esc(p.code)}</span>
+      <span class="small muted">${esc(p.unit)}</span>`;
+  }
+  const res = searchProducts(q);
+  $('tm-count').textContent = q.trim() ? `${fmt(res.length)} mã` : `${fmt(state.products.length)} mã`;
+  $('tm-list').innerHTML = !q.trim() ? (p ? '' : '<p class="more">Gõ tên hoặc mã để tìm.</p>')
+    : res.length ? res.slice(0, 40).map((x) => `<button class="card product${x.code === tm.code ? ' on' : ''}" data-code="${esc(x.code)}">${productCard(x)}</button>`).join('')
+      + (res.length > 40 ? `<p class="more">Còn ${fmt(res.length - 40)} mã nữa, gõ thêm để thu hẹp.</p>` : '')
+      : '<p class="more">Không thấy mã nào.</p>';
+}
+
+function renderTimma() {
+  drawTimma();
+  // Tải lại danh sách để có mã vừa thêm vào Sheet (không chặn màn hình).
+  api('products', {}, { quiet: true }).then((list) => {
+    setProducts(list);
+    if (state.current === 'timma') drawTimma();
+  }).catch(() => {});
+}
+
+$('tm-q').addEventListener('input', () => { tm.code = ''; drawTimma(); });
+$('tm-q').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const res = searchProducts($('tm-q').value);
+  if (res.length) { tm.code = res[0].code; drawTimma(); $('tm-q').blur(); window.scrollTo(0, 0); }
+});
+$('tm-list').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-code]');
+  if (!b) return;
+  tm.code = b.dataset.code;
+  drawTimma();
+  $('tm-q').blur();
+  window.scrollTo(0, 0);
 });
 
 // Quay lại app (từ nền) khi đang ở màn quét: mở lại camera.
