@@ -664,14 +664,22 @@ function renderForm() {
   $('fm-quick').innerHTML = quickFor(p.unit).map((n) => `<button type="button" data-add="${n}">+${fmt(n)}</button>`).join('');
 
   const field = (id, label, ph, span) => `<div class="field${span ? ' span2' : ''}"><label for="fx-${id}">${label}</label><input id="fx-${id}" data-extra="${id}" placeholder="${esc(ph)}" value="${esc(f.extra[id] || '')}" autocomplete="off"></div>`;
+  if (f.mode === 'nhap' && !f.extra.date) f.extra.date = todayIso();
+  const dateField = `<div class="field"><label for="fx-date">Ngày nhập</label><input id="fx-date" type="date" data-extra="date" value="${esc(f.extra.date || '')}" max="${todayIso()}" required></div>`;
   $('fm-extra').innerHTML = f.mode === 'nhap'
-    ? field('ncc', 'Nhà cung cấp', 'Tên NCC') + field('po', 'Số PO / chứng từ', 'Không bắt buộc') + field('note', 'Ghi chú', 'vd: hàng kiểm kê dư', true)
+    ? dateField + field('ncc', 'Nhà cung cấp', 'Tên NCC') + field('po', 'Số PO / chứng từ', 'Không bắt buộc') + field('note', 'Ghi chú', 'vd: hàng kiểm kê dư', true)
     : f.mode === 'xuat'
       ? field('khach', 'Khách hàng / nơi nhận', 'Tên khách hoặc "Hàng hỏng"', true) + field('so', 'Số đơn', 'Không bắt buộc') + field('note', 'Ghi chú', 'Lý do')
       : field('note', 'Ghi chú', 'Không bắt buộc', true);
   showError('fm-err', '');
   renderChips();
   if (!f.qty) setTimeout(() => $('fm-qty').focus(), 80);
+}
+
+// Ngày hôm nay theo giờ máy (yyyy-MM-dd) cho ô chọn ngày.
+function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function updateFormHints() {
@@ -744,6 +752,10 @@ $('fm-extra').addEventListener('input', (e) => {
   const k = e.target.dataset.extra;
   if (k) state.form.extra[k] = e.target.value;
 });
+$('fm-extra').addEventListener('change', (e) => {
+  const k = e.target.dataset.extra;
+  if (k) state.form.extra[k] = e.target.value;
+});
 
 $('f-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -752,7 +764,7 @@ $('f-form').addEventListener('submit', async (e) => {
   if ($('fm-save').disabled) return;
   showError('fm-err', '');
   const data = { code: p.code, qty: f.qty, clientId: f.clientId, note: f.extra.note || '' };
-  if (f.mode === 'nhap') Object.assign(data, { kho: f.to, ncc: f.extra.ncc || '', po: f.extra.po || '' });
+  if (f.mode === 'nhap') Object.assign(data, { kho: f.to, ncc: f.extra.ncc || '', po: f.extra.po || '', date: f.extra.date || todayIso() });
   if (f.mode === 'xuat') Object.assign(data, { kho: f.from, khach: f.extra.khach || '', so: f.extra.so || '' });
   if (f.mode === 'chuyen') Object.assign(data, { from: f.from, to: f.to });
   try {
