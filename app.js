@@ -16,7 +16,7 @@ const MODE = {
   chuyen: { title: 'Chuyển kho', verb: 'Đã chuyển', save: 'Lưu phiếu chuyển' },
 };
 const SCAN_TITLE = { '': 'Quét mã vạch', nhap: 'Quét để nhập kho', xuat: 'Quét để xuất kho', chuyen: 'Quét để chuyển kho', kiemke: 'Quét để kiểm đếm' };
-const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'phieu', 'dsphieu', 'tem', 'timma', 'account'];
+const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'phieu', 'dsphieu', 'tem', 'timma', 'dsnhap', 'account'];
 const LIST_LIMIT = 60;
 
 const $ = (id) => document.getElementById(id);
@@ -234,6 +234,7 @@ const RENDER = {
   dsphieu: () => loadDsPhieu(),
   tem: renderTem,
   timma: renderTimma,
+  dsnhap: () => loadDsNhap(),
   account: renderAccount,
 };
 
@@ -447,6 +448,7 @@ function renderHome() {
     }).join('')
     : '<p class="empty">Chưa có mã nào dưới mức tối thiểu. Điền cột "Tồn tối thiểu" ở tab Sản phẩm để app cảnh báo.</p>';
 
+  $('h-dsnhap').hidden = !isAdmin();
   $('h-recent').innerHTML = state.history.length
     ? state.history.slice(0, 6).map((h) => `<div class="recent">
         <span class="q q-${h.type}">${h.type === 'nhap' ? '+' : '−'}${fmt(h.qty)}</span>
@@ -1791,6 +1793,73 @@ $('dp-list').addEventListener('click', (e) => {
   const b = e.target.closest('[data-so]');
   const p = b && state.ds.list.find((x) => x.so === b.dataset.so);
   if (p) dsPhieuSheet(p);
+});
+
+// ───────────────────────── Sửa ngày nhập (quản lý) ─────────────────────────
+
+const dn = { list: null };
+
+async function loadDsNhap(force) {
+  renderDsNhap();
+  if (dn.list && !force) return;
+  try {
+    dn.list = await api('nhapList');
+  } catch (err) {
+    if (!dn.list) $('dn-list').innerHTML = `<p class="alert" role="alert">${esc(err.message)}</p>`;
+    toast(err.message, true);
+    return;
+  }
+  if (state.current === 'dsnhap') renderDsNhap();
+}
+
+const dmy = (iso) => (iso ? iso.split('-').reverse().join('/') : 'chưa có ngày');
+
+function renderDsNhap() {
+  if (!dn.list) { $('dn-list').innerHTML = '<p class="more">Đang tải…</p>'; return; }
+  const q = norm($('dn-q').value).trim();
+  const list = dn.list.filter((x) => !q || norm([x.code, x.name, x.ncc, x.po, x.kho].join(' ')).includes(q));
+  const max = todayIso();
+  $('dn-list').innerHTML = list.length
+    ? '<p class="muted small" style="margin:0">Chọn ngày mới rồi bấm Lưu. Chỉ đổi ngày, số lượng và tồn kho giữ nguyên.</p>' + list.slice(0, LIST_LIMIT).map((x) => `
+      <div class="card dn-item" data-row="${x.row}">
+        <strong>${esc(nice(x.name) || x.code)}</strong>
+        <span class="small muted">+${fmt(x.qty)} · ${esc(x.kho)}${x.ncc ? ' · ' + esc(x.ncc) : ''}${x.who ? ' · ' + esc(x.who) : ''}${x.ts ? ' · ghi ' + esc(x.ts) : ''}</span>
+        <span class="small">Ngày nhập: <b>${esc(dmy(x.date))}</b></span>
+        <div class="dn-row">
+          <label class="sr-only" for="dn-d-${x.row}">Ngày nhập mới</label>
+          <input id="dn-d-${x.row}" type="date" value="${esc(x.date)}" max="${max}">
+          <button class="btn btn-primary" data-save="${x.row}" disabled>Lưu</button>
+        </div>
+      </div>`).join('') + (list.length > LIST_LIMIT ? `<p class="more">Còn ${fmt(list.length - LIST_LIMIT)} dòng nữa, gõ để tìm.</p>` : '')
+    : `<p class="more">${dn.list.length ? 'Không có dòng nào khớp.' : 'Chưa có dòng nhập kho nào.'}</p>`;
+}
+
+$('dn-q').addEventListener('input', renderDsNhap);
+$('dn-refresh').addEventListener('click', () => loadDsNhap(true));
+const dnToggle = (e) => {
+  const card = e.target.closest('.dn-item');
+  if (!card || e.target.type !== 'date') return;
+  const x = dn.list.find((r) => r.row === Number(card.dataset.row));
+  card.querySelector('[data-save]').disabled = !e.target.value || e.target.value === x.date;
+};
+$('dn-list').addEventListener('input', dnToggle);
+$('dn-list').addEventListener('change', dnToggle);
+$('dn-list').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-save]');
+  if (!b || b.disabled) return;
+  const x = dn.list.find((r) => r.row === Number(b.dataset.save));
+  const val = $('dn-d-' + x.row).value;
+  if (!val) return;
+  b.disabled = true;
+  try {
+    const r = await api('editNhapDate', { row: x.row, code: x.code, date: val });
+    x.date = r.date;
+    toast(`Đã đổi ngày nhập ${x.code} thành ${dmy(r.date)}`);
+    renderDsNhap();
+  } catch (err) {
+    toast(err.message, true);
+    b.disabled = false;
+  }
 });
 
 // ───────────────────────── Sự kiện chung + khởi động ─────────────────────────

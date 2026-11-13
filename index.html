@@ -91,7 +91,7 @@
       <div class="card list" id="h-low"></div>
     </section>
     <section class="stack-sm">
-      <h2>Vừa ghi</h2>
+      <div class="row-between"><h2>Vừa ghi</h2><button class="link" data-go="dsnhap" id="h-dsnhap" hidden>Sửa ngày nhập</button></div>
       <div class="card list" id="h-recent"></div>
     </section>
   </main>
@@ -255,6 +255,23 @@
   <main class="content stack-sm" id="dp-list"></main>
 </section>
 
+<!-- Quản lý sửa ngày nhập kho -->
+<section class="screen" id="s-dsnhap" hidden>
+  <header class="bar">
+    <button class="icon-btn" data-back aria-label="Quay lại"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1>Sửa ngày nhập</h1>
+    <button class="icon-btn" id="dn-refresh" aria-label="Tải lại"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg></button>
+  </header>
+  <div class="pad stack-sm">
+    <div class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <label for="dn-q" class="sr-only">Tìm dòng nhập</label>
+      <input id="dn-q" placeholder="Tên, mã hàng, NCC hoặc kho" autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+  <main class="content stack-sm" id="dn-list"></main>
+</section>
+
 <!-- Tìm mã: gõ tên/mã, hiện 1 mã vạch lớn để quét -->
 <section class="screen" id="s-timma" hidden>
   <header class="bar">
@@ -328,21 +345,6 @@
 <style id="tem-page"></style>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="busy" id="busy" hidden><span class="spinner" aria-label="Đang xử lý"></span></div>
-
-<div class="modal" id="edit-date-modal" hidden>
-  <form id="f-edit-date" class="modal-box">
-    <h2>Sửa ngày nhập</h2>
-    <div class="field">
-      <label for="ed-date">Ngày nhập mới</label>
-      <input id="ed-date" type="date" required>
-    </div>
-    <p class="alert" id="ed-err" hidden role="alert"></p>
-    <div class="modal-actions">
-      <button type="button" class="btn" id="ed-cancel">Hủy</button>
-      <button type="submit" class="btn btn-primary">Lưu</button>
-    </div>
-  </form>
-</div>
 
 <script src="config.js"></script>
 <script src="app.js"></script>
