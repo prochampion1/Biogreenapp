@@ -85,6 +85,7 @@
       <button class="tile" data-go="tem"><span class="tile-ic t-tem" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5v14M7 5v14M10 5v14M14 5v14M16 5v14M20 5v14"/></svg></span><strong>In tem</strong><span>Mã vạch cho máy in tem</span></button>
       <button class="tile" data-go="timma"><span class="tile-ic t-tem" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M8.5 9v4M11 9v4M13.5 9v4"/></svg></span><strong>Tìm mã</strong><span>Gõ tên, hiện mã vạch để quét</span></button>
       <button class="tile" data-go="phieu"><span class="tile-ic t-xuat" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8h4l2-3h4l2 3h4v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span><strong>Chụp phiếu xuất</strong><span>Chụp phiếu ECOUNT, kiểm tra rồi trừ kho</span></button>
+      <button class="tile wide" data-go="shopee"><span class="tile-ic t-xuat" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg></span><strong>Xuất theo đơn Shopee</strong><span>Chọn file Excel Shopee, trừ kho các đơn đã đóng kiện</span></button>
     </div>
     <section class="stack-sm">
       <div class="row-between"><h2>Cần chú ý <span class="h-count" id="h-low-n" hidden></span></h2><button class="link" data-go="stock">Xem tồn kho</button></div>
@@ -234,6 +235,21 @@
     <p class="alert" id="ph-err" role="alert" hidden></p>
     <button class="btn btn-primary btn-lg" id="ph-save" disabled>Xác nhận xuất kho</button>
     <button class="btn btn-ghost" id="ph-again">Chụp lại</button>
+  </div>
+</section>
+
+<!-- Xuất kho theo file đơn Shopee -->
+<section class="screen mode-xuat" id="s-shopee" hidden>
+  <header class="bar">
+    <button class="icon-btn" data-back aria-label="Quay lại"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1>Xuất theo đơn Shopee</h1>
+  </header>
+  <input type="file" id="sp-file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
+  <main class="content stack-lg" id="sp-main"></main>
+  <div class="foot" id="sp-foot" hidden>
+    <p class="alert" id="sp-err" role="alert" hidden></p>
+    <button class="btn btn-primary btn-lg" id="sp-save" disabled>Trừ kho</button>
+    <button class="btn btn-ghost" id="sp-again">Chọn file khác</button>
   </div>
 </section>
 

@@ -16,7 +16,7 @@ const MODE = {
   chuyen: { title: 'Chuyển kho', verb: 'Đã chuyển', save: 'Lưu phiếu chuyển' },
 };
 const SCAN_TITLE = { '': 'Quét mã vạch', nhap: 'Quét để nhập kho', xuat: 'Quét để xuất kho', chuyen: 'Quét để chuyển kho', kiemke: 'Quét để kiểm đếm' };
-const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'phieu', 'dsphieu', 'tem', 'timma', 'dsnhap', 'account'];
+const SCREENS = ['login', 'password', 'home', 'scan', 'form', 'stock', 'kiemke', 'sanxuat', 'phieu', 'dsphieu', 'shopee', 'tem', 'timma', 'dsnhap', 'account'];
 const LIST_LIMIT = 60;
 
 const $ = (id) => document.getElementById(id);
@@ -43,6 +43,7 @@ const state = {
   stockTab: 'low',
   kk: { kho: null, data: null },
   phieu: null,
+  sp: null,
   ds: { list: null, range: 'all' },
 };
 
@@ -232,6 +233,7 @@ const RENDER = {
   sanxuat: () => renderSanxuat(),
   phieu: () => renderPhieu(),
   dsphieu: () => loadDsPhieu(),
+  shopee: () => renderShopee(),
   tem: renderTem,
   timma: renderTimma,
   dsnhap: () => loadDsNhap(),
@@ -1717,6 +1719,316 @@ $('ph-save').addEventListener('click', async () => {
     });
   } catch (err) {
     showError('ph-err', err.message);
+  }
+});
+
+// ───────────────────────── Xuất kho theo đơn Shopee ─────────────────────────
+// Đọc file Excel tải từ Shopee (Đơn hàng → Xuất) ngay trên máy, gửi lên máy chủ để đổi ra mã kho
+// theo tab "Map Shopee". Máy chủ chỉ nhận đơn Đã giao, Đang giao, Chờ giao hàng đã có mã kiện.
+
+const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+const SP_COLS = {
+  id: 'ma don hang', kien: 'ma kien hang', date: 'ngay dat hang', status: 'trang thai don hang',
+  name: 'ten san pham', variant: 'ten phan loai hang', qty: 'so luong',
+};
+let xlsxLoading = null;
+
+function loadXlsx() {
+  if (window.XLSX) return Promise.resolve();
+  if (!xlsxLoading) {
+    xlsxLoading = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = XLSX_URL;
+      s.onload = () => resolve();
+      s.onerror = () => { xlsxLoading = null; reject(new Error('Không tải được bộ đọc Excel. Kiểm tra mạng rồi thử lại.')); };
+      document.head.appendChild(s);
+    });
+  }
+  return xlsxLoading;
+}
+
+async function readShopeeFile(file) {
+  await loadXlsx();
+  const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const ws = wb.Sheets.orders || wb.Sheets[wb.SheetNames[0]];
+  const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+  if (rows.length < 2) throw new Error('File không có dòng đơn nào.');
+  const head = rows[0].map((h) => norm(h).replace(/\s+/g, ' ').trim());
+  const col = {};
+  Object.entries(SP_COLS).forEach(([k, label]) => { col[k] = head.indexOf(label); });
+  const missing = Object.entries(col).filter(([, i]) => i < 0).map(([k]) => SP_COLS[k]);
+  if (missing.length) throw new Error('File này không giống file đơn hàng Shopee (thiếu cột: ' + missing.join(', ') + ').');
+  const byId = new Map();
+  rows.slice(1).forEach((r) => {
+    const id = String(r[col.id] || '').trim();
+    if (!id) return;
+    if (!byId.has(id)) {
+      byId.set(id, { id, kien: String(r[col.kien] || '').trim(), date: String(r[col.date] || '').trim(),
+        status: String(r[col.status] || '').trim(), items: [] });
+    }
+    byId.get(id).items.push({ name: String(r[col.name] || '').trim(), variant: String(r[col.variant] || '').trim(),
+      qty: Number(String(r[col.qty]).replace(/[^\d.]/g, '')) || 0 });
+  });
+  return Array.from(byId.values());
+}
+
+const spKhos = () => allowedKhos().filter((k) => k !== KHO_MAU);
+const spKey = (it) => norm(it.name) + '|' + norm(it.variant);
+
+function shopeeIntro(error, reading) {
+  $('sp-foot').hidden = true;
+  $('sp-main').innerHTML = reading
+    ? '<div class="stack-sm center"><span class="spinner" aria-hidden="true"></span><p class="muted">Đang đọc file đơn Shopee…</p></div>'
+    : `${error ? `<p class="alert" role="alert">${esc(error)}</p>` : ''}
+      <p class="muted" style="margin:0">Trên Shopee: Đơn hàng → Xuất, tải file Excel về rồi chọn file đó ở đây. App chỉ trừ đơn <b>Đã giao</b>, <b>Đang giao</b> và <b>Chờ giao hàng đã có mã kiện</b>. Đơn đã trừ rồi sẽ không trừ lần nữa.</p>
+      <button class="btn btn-primary btn-lg" id="sp-choose">Chọn file Excel Shopee</button>`;
+}
+
+function renderShopee() {
+  if (state.sp) drawShopee();
+  else shopeeIntro();
+}
+
+async function loadShopee(file) {
+  if (!file) return;
+  shopeeIntro('', true);
+  try {
+    const orders = await readShopeeFile(file);
+    const r = await api('shopeePreview', { orders }, { quiet: true });
+    const khos = spKhos();
+    state.sp = {
+      file: file.name,
+      orders,
+      res: r,
+      kho: khos.includes('Kho trung tâm') ? 'Kho trung tâm' : khos[0] || null,
+      sel: new Set(r.orders.filter((o) => o.ready).map((o) => o.id)),
+      clientId: uuid(),
+      known: new Set(r.orders.filter((o) => o.ready).map((o) => o.id)),
+    };
+    if (state.current === 'shopee') drawShopee();
+  } catch (err) {
+    state.sp = null;
+    if (state.current === 'shopee') shopeeIntro(err.message);
+    else toast(err.message, true);
+  }
+}
+
+// Gọi lại máy chủ với cùng file (sau khi quản lý duyệt / sửa Map Shopee).
+async function refreshShopee() {
+  const sp = state.sp;
+  const r = await api('shopeePreview', { orders: sp.orders });
+  sp.res = r;
+  const ready = new Set(r.orders.filter((o) => o.ready).map((o) => o.id));
+  sp.sel = new Set([...sp.sel].filter((id) => ready.has(id)));
+  r.orders.forEach((o) => { if (o.ready && !sp.known.has(o.id)) sp.sel.add(o.id); });
+  sp.known = ready;
+  sp.clientId = uuid();
+  drawShopee();
+}
+
+// Các tổ hợp Tên SP + phân loại chưa đổi được ra mã kho, gộp theo tổ hợp.
+function spProblems(sp) {
+  const map = new Map();
+  sp.res.orders.forEach((o) => {
+    if (o.dup) return;
+    o.items.forEach((it) => {
+      if (it.state === 'ok') return;
+      const k = spKey(it);
+      if (!map.has(k)) map.set(k, { ...it, orders: 0, units: 0 });
+      const m = map.get(k);
+      m.orders += 1;
+      m.units += it.qty;
+    });
+  });
+  return Array.from(map.values());
+}
+
+function spNeed(sp) {
+  const need = new Map();
+  sp.res.orders.forEach((o) => {
+    if (!sp.sel.has(o.id)) return;
+    o.items.forEach((it) => it.lines.forEach((l) => {
+      const k = l.code.toLowerCase();
+      need.set(k, round6((need.get(k) || 0) + l.qty));
+    }));
+  });
+  return need;
+}
+
+function spLinesText(lines) {
+  return lines.map((l) => `${fmt(l.qty)} ${esc(l.unit)} ${esc(l.code)}`).join(' + ');
+}
+
+function drawShopee() {
+  const sp = state.sp;
+  const orders = sp.res.orders;
+  const ready = orders.filter((o) => o.ready);
+  const dup = orders.filter((o) => o.dup);
+  const blocked = orders.filter((o) => !o.ready && !o.dup);
+  const skipped = Object.entries(sp.res.skipped).map(([k, n]) => `${fmt(n)} ${esc(k)}`).join(', ');
+  const probs = spProblems(sp);
+  const probHtml = probs.map((it, i) => {
+    const sug = it.lines.length ? `<p class="small" style="margin:0">Gợi ý: ${spLinesText(it.lines.map((l) => ({ ...l, qty: l.per })))} cho 1 sản phẩm</p>` : '';
+    return `<div class="card ph-line ${it.state === 'pending' ? 'warn' : 'bad'}">
+      <strong>${esc(it.variant || '(không có phân loại)')}</strong>
+      <span class="small muted">${esc(it.name)}</span>
+      ${sug}
+      ${it.note ? `<p class="small muted" style="margin:0">Ghi chú: ${esc(it.note)}</p>` : ''}
+      <p class="ph-msg">${esc(it.msg)} · ${fmt(it.orders)} đơn, ${fmt(it.units)} sản phẩm</p>
+      ${isAdmin() ? `<div class="ph-acts">
+        ${it.state === 'pending' ? `<button class="btn btn-primary btn-sm" data-sp="approve" data-i="${i}">Gợi ý đúng, duyệt</button>` : ''}
+        <button class="btn btn-ghost btn-sm" data-sp="edit" data-i="${i}">${it.lines.length ? 'Sửa mã' : 'Chọn mã kho'}</button></div>` : ''}
+    </div>`;
+  }).join('');
+  const need = spNeed(sp);
+  const short = [];
+  const needHtml = Array.from(need.entries()).map(([k, qty]) => {
+    const p = state.byCode.get(k);
+    const have = p && sp.kho ? p.stock[sp.kho] : 0;
+    const bad = !p || qty > have;
+    if (bad) short.push(k);
+    return `<div class="bom-line${bad ? ' bad' : ''}"><span class="grow">${esc(p ? nice(p.name) : k)}<br><span class="mono small">${esc(p ? p.code : k)}</span></span>
+      <span class="num">−${fmt(qty)} ${esc(p ? p.unit : '')}<br><span class="small ${bad ? '' : 'muted'}">${sp.kho ? `${esc(KHO_SHORT[sp.kho])} còn ${fmt(have)}` : ''}</span></span></div>`;
+  }).join('');
+  const orderRow = (o, check) => `<label class="sp-order">
+      ${check ? `<input type="checkbox" data-sp-sel="${esc(o.id)}" ${sp.sel.has(o.id) ? 'checked' : ''}>` : ''}
+      <span class="grow"><span class="mono">${esc(o.id)}</span> <span class="small muted">· ${esc(o.status)}${o.date ? ' · ' + esc(o.date) : ''}</span><br>
+      <span class="small">${o.items.map((it) => `${fmt(it.qty)} × ${esc(it.variant || it.name)}`).join('; ')}</span>
+      ${o.dup ? `<br><span class="small muted">Đã trừ ngày ${esc(o.dup.date)} (${esc(o.dup.who)})</span>` : ''}</span></label>`;
+
+  $('sp-main').innerHTML = `
+    <p class="muted small" style="margin:0">File ${esc(sp.file)} · ${fmt(orders.length)} đơn đủ điều kiện${skipped ? ` · bỏ qua ${skipped}` : ''}</p>
+    <section class="stack-sm"><span class="label">Xuất từ kho</span>
+      <div class="chips" role="radiogroup">${spKhos().map((k) => `<button type="button" class="chip" role="radio" aria-checked="${sp.kho === k}" data-sp="kho" data-kho="${esc(k)}">${esc(k)}</button>`).join('')}</div>
+    </section>
+    ${probs.length ? `<section class="stack-sm"><h2>Cần đổi ra mã kho (${probs.length})</h2>
+      <p class="muted small" style="margin:0">${isAdmin() ? 'Duyệt xong một lần, các lần sau app tự nhận.' : 'Nhờ quản lý duyệt các sản phẩm này. Các đơn có sản phẩm này chưa trừ được.'}</p>
+      ${probHtml}</section>` : ''}
+    <section class="stack-sm"><div class="row-between"><h2>Đơn sẽ trừ (${fmt(sp.sel.size)}/${fmt(ready.length)})</h2>
+      ${ready.length ? `<button class="link" data-sp="all">${sp.sel.size === ready.length ? 'Bỏ chọn hết' : 'Chọn hết'}</button>` : ''}</div>
+      <div class="card list">${ready.map((o) => orderRow(o, true)).join('') || '<p class="more">Chưa có đơn nào trừ được.</p>'}</div></section>
+    ${need.size ? `<section class="stack-sm"><h2>Tổng hàng trừ</h2><div class="card list">${needHtml}</div></section>` : ''}
+    ${blocked.length ? `<details class="stack-sm"><summary>Đơn chờ đổi mã (${fmt(blocked.length)})</summary><div class="card list">${blocked.map((o) => orderRow(o, false)).join('')}</div></details>` : ''}
+    ${dup.length ? `<details class="stack-sm"><summary>Đã trừ trước đó (${fmt(dup.length)})</summary><div class="card list">${dup.map((o) => orderRow(o, false)).join('')}</div></details>` : ''}`;
+  $('sp-foot').hidden = false;
+  showError('sp-err', short.length && sp.sel.size ? `${sp.kho} không đủ hàng cho ${short.length} mã (dòng đỏ). Bỏ chọn bớt đơn hoặc đổi kho.` : '');
+  $('sp-save').textContent = sp.sel.size ? `Trừ kho ${fmt(sp.sel.size)} đơn` : 'Chọn đơn để trừ kho';
+  $('sp-save').disabled = !(sp.kho && sp.sel.size && !short.length);
+}
+
+// Quản lý chọn mã kho + số lượng trừ cho 1 sản phẩm Shopee (combo thì nhiều mã).
+function spEditor(it) {
+  const ed = { it, lines: it.lines.map((l) => ({ code: l.code, per: l.per })) };
+  const draw = () => {
+    openSheet(`<h2 id="sheet-title">Đổi ra mã kho</h2>
+      <p style="margin:0"><strong>${esc(it.variant || '(không có phân loại)')}</strong><br><span class="small muted">${esc(it.name)}</span></p>
+      <p class="muted small" style="margin:0">Nhập số lượng trừ kho cho <b>1</b> sản phẩm Shopee. Vd "Thùng 1000 ống" = 10 túi 100 cái; combo thì thêm đủ ly, nắp, ống.</p>
+      <div class="stack-sm">${ed.lines.map((l, i) => {
+        const p = state.byCode.get(l.code.toLowerCase());
+        return `<div class="card ph-line"><div class="ph-top"><span class="grow"><strong>${esc(p ? nice(p.name) : l.code)}</strong><br><span class="mono small">${esc(l.code)}</span></span>
+          <button class="icon-btn" data-act="del" data-i="${i}" aria-label="Bỏ mã này"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+          <div class="ph-qty"><input inputmode="decimal" data-per="${i}" value="${l.per ? esc(fmt(l.per)) : ''}" placeholder="SL" aria-label="Số lượng trừ cho mã ${esc(l.code)}" autocomplete="off"><span class="small muted">${esc(p ? p.unit : '')} / 1 sản phẩm</span></div></div>`;
+      }).join('') || '<p class="more">Chưa có mã nào.</p>'}</div>
+      <button class="btn btn-ghost" data-act="add">+ Thêm mã kho</button>
+      <p class="alert" id="sp-ed-err" role="alert" hidden></p>
+      <button class="btn btn-primary btn-lg" data-act="save">Lưu và duyệt</button>`, {
+      actions: {
+        del: (b) => { ed.lines.splice(Number(b.dataset.i), 1); draw(); },
+        add: () => pickSheet('Chọn mã kho', () => true, (p) => { ed.lines.push({ code: p.code, per: 0 }); draw(); }, draw),
+        save: () => saveMap(ed, (m) => showError('sp-ed-err', m)),
+      },
+    });
+    $('sheet-body').querySelectorAll('[data-per]').forEach((inp) => inp.addEventListener('input', () => {
+      const n = parseQty(inp.value);
+      ed.lines[Number(inp.dataset.per)].per = Number.isNaN(n) ? 0 : n;
+    }));
+  };
+  draw();
+}
+
+async function saveMap(ed, onError) {
+  if (!ed.lines.length) { onError('Chọn ít nhất một mã kho.'); return; }
+  if (ed.lines.some((l) => !(l.per > 0))) { onError('Nhập số lượng cho từng mã.'); return; }
+  try {
+    await api('shopeeMapSave', { name: ed.it.name, variant: ed.it.variant, lines: ed.lines });
+    closeSheet({ silent: true });
+    toast('Đã lưu vào tab Map Shopee.');
+    await refreshShopee();
+  } catch (err) {
+    onError(err.message);
+  }
+}
+
+$('s-shopee').addEventListener('click', async (e) => {
+  if (e.target.closest('#sp-choose')) { $('sp-file').click(); return; }
+  const b = e.target.closest('[data-sp]');
+  const sp = state.sp;
+  if (!b || !sp) return;
+  const probs = spProblems(sp);
+  if (b.dataset.sp === 'kho') { sp.kho = b.dataset.kho; drawShopee(); }
+  if (b.dataset.sp === 'all') {
+    const ready = sp.res.orders.filter((o) => o.ready).map((o) => o.id);
+    sp.sel = sp.sel.size === ready.length ? new Set() : new Set(ready);
+    drawShopee();
+  }
+  if (b.dataset.sp === 'edit') spEditor(probs[Number(b.dataset.i)]);
+  if (b.dataset.sp === 'approve') {
+    const it = probs[Number(b.dataset.i)];
+    try {
+      await api('shopeeMapSave', { name: it.name, variant: it.variant, lines: it.lines.map((l) => ({ code: l.code, per: l.per })) });
+      toast('Đã duyệt.');
+      await refreshShopee();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+});
+
+$('s-shopee').addEventListener('change', (e) => {
+  const id = e.target.dataset && e.target.dataset.spSel;
+  if (id == null || !state.sp) return;
+  if (e.target.checked) state.sp.sel.add(id);
+  else state.sp.sel.delete(id);
+  drawShopee();
+});
+
+$('sp-file').addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  loadShopee(f);
+});
+
+$('sp-again').addEventListener('click', () => {
+  state.sp = null;
+  shopeeIntro();
+});
+
+$('sp-save').addEventListener('click', async () => {
+  const sp = state.sp;
+  if (!sp || $('sp-save').disabled) return;
+  showError('sp-err', '');
+  try {
+    const r = await api('shopeeXuat', { kho: sp.kho, ids: [...sp.sel], orders: sp.orders, clientId: sp.clientId });
+    r.products.forEach(updateProduct);
+    refreshHistory();
+    state.sp = null;
+    openSheet(`<span class="done-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      <h2 id="sheet-title" class="center">Đã trừ kho ${fmt(r.ids.length)} đơn Shopee</h2>
+      <p class="center muted" style="margin:0">Từ ${esc(r.kho)} · đã ghi vào tab "Xuất kho"</p>
+      <div class="card list">${r.lines.map((l) => `<div class="bom-line"><span class="grow">${esc(nice(l.name))}</span><span class="num">−${fmt(l.qty)} ${esc(l.unit)}</span></div>`).join('')}</div>
+      ${pdfLine(r)}
+      <div class="grid2">
+        <button class="btn btn-ghost" data-act="home">Về trang chủ</button>
+        <button class="btn btn-primary" data-act="again">Chọn file khác</button>
+      </div>`, {
+      actions: {
+        home: () => { state.stack = []; show('home', { push: false }); },
+        again: () => { closeSheet({ silent: true }); shopeeIntro(); },
+      },
+      onClose: () => shopeeIntro(),
+    });
+  } catch (err) {
+    showError('sp-err', err.message);
   }
 });
 

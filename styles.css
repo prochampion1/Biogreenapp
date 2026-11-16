@@ -318,3 +318,11 @@ h2 { font-size: 16px; font-weight: 700; }
 .dn-item .dn-row { display: flex; align-items: center; gap: 8px; }
 .dn-item input[type=date] { flex: 1; min-width: 0; min-height: 40px; }
 .dn-item .btn { min-height: 40px; padding: 0 14px; }
+
+/* Xuất theo đơn Shopee */
+.sp-order { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.sp-order:last-child { border-bottom: 0; }
+.sp-order input { width: 22px; height: 22px; margin-top: 2px; flex: none; }
+.sp-order .grow { min-width: 0; overflow-wrap: anywhere; }
+.bom-line.bad, .bom-line.bad .small { color: var(--red-ink); }
+#s-shopee details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
