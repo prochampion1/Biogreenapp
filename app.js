@@ -828,7 +828,7 @@ function renderStock() {
 function renderStockList() {
   const tab = STOCK_TABS.find((t) => t.id === state.stockTab);
   const list = searchProducts($('st-q').value, state.products.filter(tab.test));
-  const shown = list.slice(0, LIST_LIMIT);
+  const shown = list;
   $('st-list').innerHTML = (list.length
     ? `<span class="small muted">${list.length} sản phẩm · có thể bán = Trên + Dưới + Trung tâm</span>`
       + shown.map((p) => `<button class="card stock-item" data-code="${esc(p.code)}">
