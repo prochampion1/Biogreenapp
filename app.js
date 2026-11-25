@@ -367,6 +367,29 @@ async function loadAll({ quiet = false } = {}) {
   state.boms = d.boms || [];
 }
 
+// Màn đăng nhập: điền sẵn tên đăng nhập lần trước + nhờ Chrome điền mật khẩu đã lưu (2026-11-25).
+const LAST_USER_KEY = 'kho.lastUser';
+async function prepLogin() {
+  const u = store.get(LAST_USER_KEY);
+  if (u && !$('l-user').value) $('l-user').value = u;
+  if (!window.PasswordCredential || !navigator.credentials) return;
+  try {
+    const c = await navigator.credentials.get({ password: true, mediation: 'optional' });
+    if (c && c.type === 'password' && c.password) {
+      $('l-user').value = c.id;
+      $('l-pass').value = c.password;
+    }
+  } catch (e) { /* trình duyệt không hỗ trợ: bỏ qua */ }
+}
+
+function savePasswordToBrowser(username, password) {
+  store.set(LAST_USER_KEY, username);
+  if (!window.PasswordCredential || !navigator.credentials) return;
+  try {
+    navigator.credentials.store(new PasswordCredential({ id: username, password, name: username })).catch(() => {});
+  } catch (e) { /* bỏ qua */ }
+}
+
 function logout(expired = false) {
   stopCamera();
   closeLowAlert();
@@ -376,6 +399,7 @@ function logout(expired = false) {
   state.stack = [];
   state.kk = { kho: null, data: null };
   show('login', { push: false });
+  prepLogin();
   if (expired) toast('Phiên đăng nhập đã hết, vui lòng đăng nhập lại.', true);
 }
 
@@ -383,8 +407,10 @@ $('f-login').addEventListener('submit', async (e) => {
   e.preventDefault();
   showError('l-err', '');
   try {
-    const r = await api('login', { username: $('l-user').value, password: $('l-pass').value });
+    const user = $('l-user').value.trim().toLowerCase(), pass = $('l-pass').value;
+    const r = await api('login', { username: user, password: pass });
     setSession(r, $('l-remember').checked);
+    savePasswordToBrowser(user, pass);
     $('l-pass').value = '';
     await afterLogin();
   } catch (err) {
@@ -410,6 +436,7 @@ $('f-password').addEventListener('submit', async (e) => {
     const wasFirst = state.user.mustChange;
     const r = await api('changePassword', { oldPassword: $('pw-old').value, newPassword: pw });
     setSession(r, store.remembered() || wasFirst);
+    if (state.user && state.user.username) savePasswordToBrowser(state.user.username, pw);
     toast('Đã đổi mật khẩu.');
     if (wasFirst) await afterLogin();
     else goBack();
@@ -2276,6 +2303,7 @@ async function init() {
   const s = store.load();
   if (!s || !s.token) {
     show('login', { push: false });
+    prepLogin();
     return;
   }
   state.token = s.token;
