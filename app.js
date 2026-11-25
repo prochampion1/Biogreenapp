@@ -1979,7 +1979,7 @@ async function saveMap(ed, onError) {
   try {
     await api('shopeeMapSave', { name: ed.it.name, variant: ed.it.variant, lines: ed.lines });
     closeSheet({ silent: true });
-    toast('Đã lưu vào tab Map Shopee.');
+    toast('Đã lưu vào MapShopee (file Tồn kho Ecount).');
     await refreshShopee();
   } catch (err) {
     onError(err.message);
