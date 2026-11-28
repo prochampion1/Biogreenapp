@@ -4,8 +4,8 @@
 // đọc/ghi qua Apps Script (link trong config.js).
 
 const CFG = window.KHO_CONFIG || {};
-const KHO = ['Kho trên', 'Kho dưới', 'Kho trung tâm', 'Kho mẫu', 'Khu sản xuất'];
-const KHO_SHORT = { 'Kho trên': 'Trên', 'Kho dưới': 'Dưới', 'Kho trung tâm': 'Trung tâm', 'Kho mẫu': 'Mẫu', 'Khu sản xuất': 'SX' };
+const KHO = ['Kho trên 1', 'Kho trên 2', 'Kho dang dở', 'Kho mẫu', 'Khu sản xuất'];
+const KHO_SHORT = { 'Kho trên 1': 'Trên 1', 'Kho trên 2': 'Trên 2', 'Kho dang dở': 'Dang dở', 'Kho mẫu': 'Mẫu', 'Khu sản xuất': 'SX' };
 const KHO_MAU = 'Kho mẫu';
 const KHO_SX = 'Khu sản xuất';
 const ADMIN = 'Quản lý';
@@ -857,10 +857,10 @@ function renderStockList() {
   const list = searchProducts($('st-q').value, state.products.filter(tab.test));
   const shown = list;
   $('st-list').innerHTML = (list.length
-    ? `<span class="small muted">${list.length} sản phẩm · có thể bán = Trên + Dưới + Trung tâm</span>`
+    ? `<span class="small muted">${list.length} sản phẩm · có thể bán = Trên 1 + Trên 2 + Dang dở</span>`
       + shown.map((p) => `<button class="card stock-item" data-code="${esc(p.code)}">
           <span class="stock-top"><span><strong>${esc(nice(p.name))}</strong><span class="mono">${esc(p.code)}</span></span><span class="badge ${statusClass(p.status)}">${esc(p.status || '—')}</span></span>
-          <span class="stock-bottom"><span>Trên ${fmt(p.stock['Kho trên'])} · Dưới ${fmt(p.stock['Kho dưới'])} · TT ${fmt(p.stock['Kho trung tâm'])} · Mẫu ${fmt(p.stock['Kho mẫu'])} · SX ${fmt(p.stock[KHO_SX])}</span><span><b>${fmt(p.sellable)}</b> ${esc(p.unit)}</span></span>
+          <span class="stock-bottom"><span>Trên 1 ${fmt(p.stock['Kho trên 1'])} · Trên 2 ${fmt(p.stock['Kho trên 2'])} · DD ${fmt(p.stock['Kho dang dở'])} · Mẫu ${fmt(p.stock['Kho mẫu'])} · SX ${fmt(p.stock[KHO_SX])}</span><span><b>${fmt(p.sellable)}</b> ${esc(p.unit)}</span></span>
         </button>`).join('')
       + (list.length > shown.length ? `<p class="more">Còn ${list.length - shown.length} mã nữa, gõ tên hoặc mã để tìm.</p>` : '')
     : state.stockTab === 'low' && !$('st-q').value
@@ -1237,7 +1237,7 @@ function produceSheet(p) {
   if (!b) return;
   if (!khos.includes(KHO_SX)) { toast('Tài khoản của bạn chưa được làm ở Khu sản xuất.', true); return; }
   const last = store.get('kho.last.sx');
-  const s = { qty: 0, out: khos.includes(last) ? last : khos.includes('Kho trung tâm') ? 'Kho trung tâm' : khos[0], note: '', clientId: uuid() };
+  const s = { qty: 0, out: khos.includes(last) ? last : khos.includes('Kho dang dở') ? 'Kho dang dở' : khos[0], note: '', clientId: uuid() };
   const need = () => b.lines.map((l) => {
     const m = state.byCode.get(l.code.toLowerCase());
     const q = round6(l.qty * (s.qty > 0 ? s.qty : 0));
@@ -1541,7 +1541,7 @@ async function readPhieu(file) {
       khach: r.khach,
       dup: r.dup,
       repeat: false,
-      kho: khos.includes('Kho trung tâm') ? 'Kho trung tâm' : khos[0] || null, // kho tổng
+      kho: khos.includes('Kho dang dở') ? 'Kho dang dở' : khos[0] || null, // kho tổng
       lines: r.lines.map((l) => ({ ...l, sl: 0, qty: 0, note: '', oddOk: null })),
       clientId: uuid(),
     };
@@ -1827,7 +1827,7 @@ async function loadShopee(file) {
       file: file.name,
       orders,
       res: r,
-      kho: khos.includes('Kho trung tâm') ? 'Kho trung tâm' : khos[0] || null,
+      kho: khos.includes('Kho dang dở') ? 'Kho dang dở' : khos[0] || null,
       sel: new Set(r.orders.filter((o) => o.ready).map((o) => o.id)),
       clientId: uuid(),
       known: new Set(r.orders.filter((o) => o.ready).map((o) => o.id)),
